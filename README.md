@@ -10,7 +10,7 @@ pip install --no-cache --upgrade fastbot
 ```
 #### Install from Github
 ```sh
-pip install --no-cache --upgrade https://github.com/omegaisme/fastbot.git
+pip install --no-cache --upgrade git+https://github.com/omegaisme/fastbot.git
 ```
 
 ### Example
