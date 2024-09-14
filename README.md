@@ -4,10 +4,6 @@ a lightweight bot framework base on `FastAPI` and `OneBot v11` protocol.
 
 ## Quick Start
 ### Installation
-#### Install from pypi
-```sh
-pip install --no-cache --upgrade fastbot
-```
 #### Install from Github
 ```sh
 pip install --no-cache --upgrade git+https://github.com/omegaisme/fastbot.git
