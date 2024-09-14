@@ -15,22 +15,51 @@ class Link(list):
     ) -> None:
         self[:] = [self, self, None]
 
+        self.length = 0
         self.maxlen = maxlen
 
         if iterable:
             self.extend(iterable)
 
-        self.length = 0
+    def __iter__(self) -> Iterator[Any]:
+        next_node = self[NEXT]
 
-    def clear(self) -> None:
-        self[:] = [self, self, None]
+        while next_node is not self:
+            yield next_node[DATA]
+            next_node = next_node[NEXT]
+
+    def __len__(self) -> int:
+        return self.length
+
+    def __delitem__(self, idx: int) -> None:
+        if not (-self.length <= idx < self.length):
+            raise IndexError("index out of range")
+
+        if idx < 0:
+            idx += self.length
+
+        if idx <= self.length // 2:
+            current_node = self[NEXT]
+            for _ in range(idx):
+                current_node = current_node[NEXT]
+        else:
+            current_node = self[PREV]
+            for _ in range(self.length - 1 - idx):
+                current_node = current_node[PREV]
+
+        prev_node = current_node[PREV]
+        next_node = current_node[NEXT]
+        prev_node[NEXT] = next_node
+        next_node[PREV] = prev_node
+
+        self.length -= 1
 
     def append(self, value: Any) -> None:
         if self.maxlen is not None and self.length == self.maxlen:
             self.popleft()
 
-        last = self[PREV]
-        last[NEXT] = self[PREV] = [last, self, value]
+        prev_node = self[PREV]
+        prev_node[NEXT] = self[PREV] = [prev_node, self, value]
 
         self.length += 1
 
@@ -38,10 +67,14 @@ class Link(list):
         if self.maxlen is not None and self.length == self.maxlen:
             self.pop()
 
-        first = self[NEXT]
-        first[PREV] = self[NEXT] = [self, first, value]
+        next_node = self[NEXT]
+        next_node[PREV] = self[NEXT] = [self, next_node, value]
 
         self.length += 1
+
+    def clear(self) -> None:
+        self[:] = [self, self, None]
+        self.length = 0
 
     def extend(self, values: Any) -> None:
         for value in values:
@@ -51,29 +84,89 @@ class Link(list):
         for value in values:
             self.appendleft(value)
 
+    def insert(self, idx: int, value: Any) -> None:
+        if not (-self.length <= idx < self.length):
+            raise IndexError("index out of range")
+
+        if self.maxlen is not None and self.length == self.maxlen:
+            raise IndexError("list has reached its maximum length")
+
+        if idx == 0:
+            self.appendleft(value)
+
+        elif idx < 0:
+            idx += self.length
+
+        if idx <= self.length // 2:
+            current_node = self[NEXT]
+            for _ in range(idx):
+                current_node = current_node[NEXT]
+
+        else:
+            current_node = self
+            for _ in range(self.length - idx):
+                current_node = current_node[PREV]
+
+        prev_node = current_node
+        next_node = current_node[NEXT]
+        link = [prev_node, next_node, value]
+        next_node[PREV] = link
+        prev_node[NEXT] = link
+
+        self.length += 1
+
     def pop(self) -> Any:
-        if (last := self[PREV]) is self:
+        if self.length == 0:
             raise IndexError("pop from empty list")
 
-        prev = last[PREV]
-        prev[NEXT] = self
-        self[PREV] = prev
+        prev_node = self[PREV]
+        prev_node[PREV][NEXT] = self
+        self[PREV] = prev_node[PREV]
 
         self.length -= 1
-
-        return last[DATA]
+        return prev_node[DATA]
 
     def popleft(self) -> Any:
-        if (first := self[NEXT]) is self:
+        if self.length == 0:
             raise IndexError("pop from empty list")
 
-        next = first[NEXT]
-        self[NEXT] = next
-        next[PREV] = self
+        next_node = self[NEXT]
+        next_node[NEXT][PREV] = self
+        self[NEXT] = next_node[NEXT]
 
         self.length -= 1
+        return next_node[DATA]
 
-        return first[DATA]
+    def reverse(self) -> None:
+        prev_node = self
+        current_node = self[NEXT]
+        self[NEXT] = self[PREV] = self
+
+        while current_node is not self:
+            next_node = current_node[NEXT]
+            current_node[NEXT] = prev_node
+            current_node[PREV] = prev_node
+            prev_node = current_node
+            current_node = next_node
+
+        self[NEXT] = prev_node
+        self[PREV] = prev_node[PREV]
+
+    def remove(self, value: Any) -> None:
+        current_node = self[NEXT]
+        while current_node is not self:
+            if current_node[DATA] == value:
+                prev_node = current_node[PREV]
+                next_node = current_node[NEXT]
+                prev_node[NEXT] = next_node
+                next_node[PREV] = prev_node
+
+                self.length -= 1
+                return
+
+            current_node = current_node[NEXT]
+
+        raise ValueError(f"{value} is not in list")
 
     def rotate(self, n: int) -> None:
         if (length := self.length) == 0:
@@ -88,84 +181,23 @@ class Link(list):
 
         if n <= length // 2:
             for _ in range(n):
-                last = self[PREV]
-                self[PREV] = last[PREV]
-                last[PREV][NEXT] = self
-                self[NEXT][PREV] = last
-                last[NEXT] = self[NEXT]
-                self[NEXT] = last
-                last[PREV] = self
+                prev_node = self[PREV]
+                self[PREV] = prev_node[PREV]
+                prev_node[PREV][NEXT] = self
+                self[NEXT][PREV] = prev_node
+                prev_node[NEXT] = self[NEXT]
+                self[NEXT] = prev_node
+                prev_node[PREV] = self
 
         else:
             for _ in range(length - n):
-                first = self[NEXT]
-                self[NEXT] = first[NEXT]
-                first[NEXT][PREV] = self
-                self[PREV][NEXT] = first
-                first[PREV] = self[PREV]
-                self[PREV] = first
-                first[NEXT] = self
-
-    def __iter__(self) -> Iterator[Any]:
-        first = self[NEXT]
-
-        while first is not self:
-            yield first[DATA]
-            first = first[NEXT]
-
-    def __len__(self) -> int:
-        return self.length
-
-    def index(self, x: Any, start: int = 0, end: int = -1) -> int:
-        if end == -1 or end > self.length:
-            end = self.length
-
-        if start < 0:
-            start = 0
-
-        for idx, data in enumerate(self):
-            if start <= idx < end:
-                if data == x:
-                    return idx
-
-        raise ValueError(f"{x} is not in the list")
-
-    def insert(self, i: int, x: Any) -> None:
-        if self.maxlen is not None and self.length == self.maxlen:
-            raise IndexError("This list has reached its maximum length")
-
-        if i == 0:
-            self.appendleft(x)
-
-        elif i < 0:
-            self.insert(self.length + i + 1, x)
-
-        else:
-            first = self[NEXT]
-            for _ in range(i - 1):
-                first = first[NEXT]
-
-            prev = first
-            next = first[NEXT]
-
-            link = [prev, next, x]
-            prev[NEXT] = link
-            next[PREV] = link
-
-            self.length += 1
-
-    def reverse(self) -> None:
-        prev = self
-        first = self[NEXT]
-
-        while first is not self:
-            next_node = first[NEXT]
-            first[NEXT] = prev
-            prev = first
-            first = next_node
-
-        self[NEXT] = prev
-        self[PREV] = prev
+                next_node = self[NEXT]
+                self[NEXT] = next_node[NEXT]
+                next_node[NEXT][PREV] = self
+                self[PREV][NEXT] = next_node
+                next_node[PREV] = self[PREV]
+                self[PREV] = next_node
+                next_node[NEXT] = self
 
 
 @dataclass
