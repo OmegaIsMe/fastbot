@@ -79,6 +79,9 @@ class PrivateMessageEvent(MessageEvent):
             )
         )
 
+    def __hash__(self) -> int:
+        return hash((self.user_id, self.time, self.raw_message))
+
     async def send(self, message: str | Message | MessageSegment) -> Any:
         return await FastBot.do(
             endpoint="send_private_msg ",
@@ -166,6 +169,9 @@ class GroupMessageEvent(MessageEvent):
                 placeholder="...",
             )
         )
+
+    def __hash__(self) -> int:
+        return hash((self.group_id, self.user_id, self.time, self.raw_message))
 
     async def send(self, message: str | MessageSegment | Message) -> Any:
         return await FastBot.do(
