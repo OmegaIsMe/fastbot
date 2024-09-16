@@ -4,7 +4,6 @@ from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import KW_ONLY, dataclass, field
 from importlib.util import module_from_spec, spec_from_file_location
-from itertools import chain
 from operator import attrgetter
 from pathlib import Path
 from types import SimpleNamespace, UnionType
@@ -94,54 +93,34 @@ class PluginManager:
     @classmethod
     @asynccontextmanager
     async def event_hook(cls, *, ctx: Context) -> AsyncGenerator[Context, None]:
-        preprocessors = list(
-            chain.from_iterable(
-                plugin.preprocessors for plugin in cls.plugins.values()
+        for proc in sorted(
+            (
+                proc
+                for plugin in cls.plugins.values()
+                for proc in getattr(plugin, "preprocessor")
             ),
-        )
-
-        if any(processor.priority for processor in preprocessors):
-            for proc in sorted(preprocessors, key=attrgetter("priority")):
-                await (
-                    func(ctx)
-                    if asyncio.iscoroutinefunction(func := proc.func)
-                    else asyncio.to_thread(func, ctx)
-                )
-
-        else:
-            await asyncio.gather(
-                *(
-                    func(ctx)
-                    if asyncio.iscoroutinefunction(func := processor.func)
-                    else asyncio.to_thread(func, ctx)
-                    for processor in preprocessors
-                )
+            key=attrgetter("priority"),
+        ):
+            await (
+                func(ctx)
+                if asyncio.iscoroutinefunction(func := proc.func)
+                else asyncio.to_thread(func, ctx)
             )
 
         yield ctx
 
-        postprocessors = list(
-            chain.from_iterable(
-                plugin.postprocessors for plugin in cls.plugins.values()
+        for proc in sorted(
+            (
+                proc
+                for plugin in cls.plugins.values()
+                for proc in getattr(plugin, "postprocessor")
             ),
-        )
-
-        if any(processor.priority for processor in postprocessors):
-            for proc in sorted(postprocessors, key=attrgetter("priority")):
-                await (
-                    func(ctx)
-                    if asyncio.iscoroutinefunction(func := proc.func)
-                    else asyncio.to_thread(func, ctx)
-                )
-
-        else:
-            await asyncio.gather(
-                *(
-                    func(ctx)
-                    if asyncio.iscoroutinefunction(func := processor.func)
-                    else asyncio.to_thread(func, ctx)
-                    for processor in postprocessors
-                )
+            key=attrgetter("priority"),
+        ):
+            await (
+                func(ctx)
+                if asyncio.iscoroutinefunction(func := proc.func)
+                else asyncio.to_thread(func, ctx)
             )
 
     @classmethod
