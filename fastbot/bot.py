@@ -3,7 +3,8 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Self, Type
+from typing import TYPE_CHECKING, Any, ClassVar, Iterable, Self
+from weakref import WeakValueDictionary
 
 from fastapi import FastAPI, WebSocket, WebSocketException, status
 
@@ -29,8 +30,11 @@ if TYPE_CHECKING:
 class FastBot:
     app: ClassVar[FastAPI]
 
-    connector: ClassVar[Dict[str, WebSocket]] = {}
-    futures: ClassVar[Dict[int, asyncio.Future]] = {}
+    connector: ClassVar[WeakValueDictionary[str, WebSocket]] = WeakValueDictionary()
+    futures: ClassVar[WeakValueDictionary[int, asyncio.Future]] = WeakValueDictionary()
+
+    def __init__(self, app: FastAPI | None = None, *args, **kwargs) -> None:
+        self.__class__.app = app or FastAPI(*args, **kwargs)
 
     @classmethod
     async def ws_adapter(cls, websocket: WebSocket) -> None:
@@ -38,7 +42,7 @@ class FastBot:
             if not (access_token := websocket.headers.get("authorization")):
                 raise WebSocketException(
                     code=status.WS_1008_POLICY_VIOLATION,
-                    reason="missing `authorization` header",
+                    reason="Missing `authorization` header",
                 )
 
             match access_token.split():
@@ -48,50 +52,43 @@ class FastBot:
                 ) and token != authorization:
                     raise WebSocketException(
                         code=status.HTTP_403_FORBIDDEN,
-                        reason="invalid `authorization` header",
+                        reason="Invalid `authorization` header",
                     )
 
                 case [token] if token != authorization:
                     raise WebSocketException(
                         code=status.HTTP_403_FORBIDDEN,
-                        reason="invalid `authorization` header",
+                        reason="Invalid `authorization` header",
                     )
 
                 case _:
                     raise WebSocketException(
                         code=status.HTTP_403_FORBIDDEN,
-                        reason="invalid `authorization` header",
+                        reason="Invalid `authorization` header",
                     )
 
         if not (self_id := websocket.headers.get("x-self-id")):
             raise WebSocketException(
                 code=status.WS_1008_POLICY_VIOLATION,
-                reason="missing `x-self-id` header",
+                reason="Missing `x-self-id` header",
             )
 
         if self_id in cls.connector:
             raise WebSocketException(
                 code=status.WS_1008_POLICY_VIOLATION,
-                reason="duplicate `x-self-id` header",
+                reason="Duplicate `x-self-id` header",
             )
 
         await websocket.accept()
 
-        logging.info(f"websocket connected {self_id=}")
+        logging.info(f"Websocket connected {self_id=}")
 
         cls.connector[self_id] = websocket
 
-        try:
-            async for data in websocket.iter_text():
-                asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
+        async for data in websocket.iter_text():
+            asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
 
-        except Exception as e:
-            logging.exception(e)
-
-        finally:
-            logging.warning(f"websocket disconnected {self_id=}")
-
-            del cls.connector[self_id]
+        logging.warning(f"Websocket disconnected {self_id=}")
 
     @classmethod
     async def event_handler(cls, ctx: "Context") -> None:
@@ -116,35 +113,36 @@ class FastBot:
         future = asyncio.Future()
         future_id = id(future)
 
-        try:
-            cls.futures[future_id] = future
+        logging.debug(f"{endpoint=} {self_id=} {kwargs=}")
 
-            await cls.connector[str(self_id)].send_text(
-                json.dumps({"action": endpoint, "params": kwargs, "echo": future_id})
-            )
+        cls.futures[future_id] = future
 
-            return await future
+        await cls.connector[str(self_id)].send_text(
+            json.dumps({"action": endpoint, "params": kwargs, "echo": future_id})
+        )
 
-        finally:
-            del cls.futures[future_id]
+        return await future
 
     @classmethod
-    def build_app(cls, app: FastAPI | None = None, *args, **kwargs) -> Type[Self]:
-        cls.app = app or FastAPI(*args, **kwargs)
-        return cls
-
-    @classmethod
-    def load_plugins(cls, path_to_plugins: str = "plugins") -> Type[Self]:
+    def build(
+        cls,
+        app: FastAPI | None = None,
+        plugins: str | Iterable[str] = "plugins",
+        *args,
+        **kwargs,
+    ) -> Self:
         from fastbot.plugin import PluginManager
 
-        PluginManager.import_from(path_to_plugins)
-        return cls
+        if isinstance(plugins, str):
+            PluginManager.import_from(plugins)
+        else:
+            for plugin in plugins:
+                PluginManager.import_from(plugin)
+
+        return cls(app=app, *args, **kwargs)
 
     @classmethod
     def run(cls, *args, **kwargs) -> None:
         import uvicorn
 
-        if not cls.app:
-            cls.build_app()
-
-        uvicorn.run(app=cls.app, *args, **kwargs)
+        uvicorn.run(cls.app, *args, **kwargs)

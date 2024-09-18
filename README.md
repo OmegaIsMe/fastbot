@@ -4,6 +4,10 @@ a lightweight bot framework base on `FastAPI` and `OneBot v11` protocol.
 
 ## Quick Start
 ### Installation
+#### Install from pypi
+```sh
+pip install --no-cache --upgrade fastbot
+```
 #### Install from Github
 ```sh
 pip install --no-cache --upgrade git+https://github.com/omegaisme/fastbot.git
@@ -32,16 +36,20 @@ from fastbot.bot import FastBot
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    app.add_api_websocket_route("/onebot/v11", FastBot.ws_adapter) # Register a websocket adapter to `FastAPI`
+    # Register a websocket adapter to `FastAPI`
+    app.add_api_websocket_route("/onebot/v11/ws", FastBot.ws_adapter)
+
     yield
 
 
 if __name__ == "__main__":
     (
         FastBot
-        .build_app(lifespan=lifespan)  # Parameter will pass to `FastAPI(...)`
-        .load_plugins("plugins")  # Parameter will pass to `fastbot.plugin.PluginManager.import_from(...)`
-        .run(host="0.0.0.0", port=80)  # Parameter will pass to `uvicorn.run(...)`
+        # `plugins` parameter will pass to `fastbot.plugin.PluginManager.import_from(...)`
+        # the rest arameter will pass to `FastAPI(...)`
+        .build(plugins=["plugins"], lifespan=lifespan)
+        # Parameter will pass to `uvicorn.run(...)`
+        .run(host="0.0.0.0", port=80)
     )
 ```
 
@@ -66,8 +74,7 @@ class IsInGroupBlacklist(Matcher):
         return event.group_id in self.blacklist
 
 
-# If all processors have a priority of 0, all processors will be executed concurrently,
-# otherwise they will be executed in sequence.
+# all processors will be executed in sequence.
 @event_preprocessing(priority=0)
 async def preprocessing(ctx: Context):
     if ctx.get("group_id") == ...:

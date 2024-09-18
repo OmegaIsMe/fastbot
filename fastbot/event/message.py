@@ -61,6 +61,13 @@ class PrivateMessageEvent(MessageEvent):
     font: int
     sender: Sender
 
+    # go-cqhttp
+    message_seq: int
+
+    # napcat
+    real_id: int
+    message_format: str
+
     post_type: Literal["message"] = "message"
     message_type: Literal["private"] = "private"
 
@@ -69,18 +76,18 @@ class PrivateMessageEvent(MessageEvent):
         self.message = Message(
             MessageSegment(type=msg["type"], data=msg["data"])
             for msg in self.ctx["message"]
-        )
+        ).compact()
 
         logging.info(
             shorten(
-                f"[{self.__class__.__name__}][Sender:{self.sender.nickname}({self.user_id})]: {self.text}",
+                f"[{self.__class__.__name__}][Sender={self.sender.nickname}({self.user_id})]: {self.text}",
                 width=79,
                 placeholder="...",
             )
         )
 
     def __hash__(self) -> int:
-        return hash((self.user_id, self.time, self.raw_message))
+        return hash((self.user_id, self.time, self.self_id, self.raw_message))
 
     async def send(self, message: str | Message | MessageSegment) -> Any:
         return await FastBot.do(
@@ -142,7 +149,6 @@ class GroupMessageEvent(MessageEvent):
     message_id: int
     group_id: int
     user_id: int
-    anonymous: Anonymous | None
     message: Message
     raw_message: str
     font: int
@@ -151,27 +157,36 @@ class GroupMessageEvent(MessageEvent):
     # go-cqhttp
     message_seq: int
 
+    # napcat
+    real_id: int
+    message_format: str
+
+    anonymous: Anonymous | None = None
     post_type: Literal["message"] = "message"
     message_type: Literal["group"] = "group"
 
     def __post_init__(self) -> None:
-        self.anonymous = self.__class__.Anonymous(**(self.ctx["anonymous"] or {}))
+        self.anonymous = self.__class__.Anonymous(
+            **(self.ctx.get("anonymous", {}) or {})
+        )
         self.sender = self.__class__.Sender(**(self.ctx["sender"] or {}))
         self.message = Message(
             MessageSegment(type=msg["type"], data=msg["data"])
             for msg in self.ctx["message"]
-        )
+        ).compact()
 
         logging.info(
             shorten(
-                f"[{self.__class__.__name__}][Group:{self.group_id}][Sender:{self.sender.nickname}({self.user_id})]: {self.text}",
+                f"[{self.__class__.__name__}][Group={self.group_id}][Sender={self.sender.nickname}({self.user_id})]: {self.text}",
                 width=79,
                 placeholder="...",
             )
         )
 
     def __hash__(self) -> int:
-        return hash((self.group_id, self.user_id, self.time, self.raw_message))
+        return hash(
+            (self.group_id, self.user_id, self.self_id, self.time, self.raw_message)
+        )
 
     async def send(self, message: str | MessageSegment | Message) -> Any:
         return await FastBot.do(
