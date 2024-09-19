@@ -137,37 +137,40 @@ def event_postprocessing(*, priority: int = 0) -> Callable[..., Any]:
 
 def on(matcher: Matcher | Callable[[Event], bool] | None = None):
     if matcher:
+        if matcher.is_aggrated is True:
 
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            if matcher.is_aggrated:
+            def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
                 PluginManager.aggrate_matchers[matcher.__class__.__name__] = matcher
                 matcher.aggrate(func)
                 return func
-            event_type = tuple()
 
-            for param in func.__annotations__.values():
-                if isinstance(param, (UnionType, _UnionGenericAlias)):
-                    for arg in get_args(param):
+        else:
+
+            def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+                event_type = tuple()
+
+                for param in func.__annotations__.values():
+                    if isinstance(param, (UnionType, _UnionGenericAlias)):
+                        for arg in get_args(param):
+                            with suppress(TypeError):
+                                if issubclass(arg, Event):
+                                    event_type += (arg,)
+                    else:
                         with suppress(TypeError):
-                            if issubclass(arg, Event):
-                                event_type += (arg,)
-                else:
-                    with suppress(TypeError):
-                        if issubclass(param, Event):
-                            event_type += (param,)
+                            if issubclass(param, Event):
+                                event_type += (param,)
 
-            event_type = tuple(event_type)
+                event_type = tuple(event_type)
 
-            async def wrapper(event: Event, *args, **kwargs) -> Any:
-                if not isinstance(event, event_type) or not matcher(event):
-                    return
+                async def wrapper(event: Event, *args, **kwargs) -> Any:
+                    if not isinstance(event, event_type) or not matcher(event):
+                        return
 
-                return await func(event, *args, **kwargs)
+                    return await func(event, *args, **kwargs)
 
-            PluginManager.plugins[func.__module__].executors.append(wrapper)
+                PluginManager.plugins[func.__module__].executors.append(wrapper)
 
-            return wrapper
-
+                return wrapper
     else:
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
