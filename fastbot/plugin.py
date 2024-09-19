@@ -3,10 +3,10 @@ import logging
 from contextlib import asynccontextmanager, suppress
 from contextvars import ContextVar
 from dataclasses import KW_ONLY, dataclass, field
-from importlib.util import module_from_spec, spec_from_file_location
+
 from operator import attrgetter
 from pathlib import Path
-from types import SimpleNamespace, UnionType
+from types import UnionType
 from typing import (
     Any,
     AsyncGenerator,
@@ -25,15 +25,19 @@ from fastbot.matcher import Matcher
 
 @dataclass
 class Plugin:
-    _: KW_ONLY
+    @dataclass
+    class Processor:
+        _: KW_ONLY
 
-    module_name: str
-    module_path: str
+        priority: int = 0
+        executor: Callable[[Context], Any]
+
+    _: KW_ONLY
 
     state: ContextVar = ContextVar("state", default=True)
 
-    preprocessors: List[SimpleNamespace] = field(default_factory=list)
-    postprocessors: List[SimpleNamespace] = field(default_factory=list)
+    preprocessors: List[Processor] = field(default_factory=list)
+    postprocessors: List[Processor] = field(default_factory=list)
 
     executors: List[Callable[..., Any]] = field(default_factory=list)
 
@@ -47,31 +51,29 @@ class PluginManager:
 
     @classmethod
     def import_from(cls, path_to_import: str) -> None:
+        from importlib.util import module_from_spec, spec_from_file_location
+
         def load(module_name: str, module_path: str) -> None:
-            if spec := spec_from_file_location(module_name, module_path):
-                module = module_from_spec(spec)
+            spec = spec_from_file_location(module_name, module_path)
+            module = module_from_spec(spec)  # type: ignore
 
-                try:
-                    cls.plugins[module_name] = Plugin(
-                        module_name=module_name, module_path=module_path
-                    )
+            try:
+                cls.plugins[module_name] = Plugin()
 
-                    spec.loader.exec_module(module)  # type: ignore
+                spec.loader.exec_module(module)  # type: ignore
 
-                    logging.info(f"loaded plugin [{module_name}] from [{module_path}]")
+                logging.info(f"loaded plugin [{module_name}] from [{module_path}]")
 
-                except Exception as e:
-                    logging.exception(e)
+            except Exception as e:
+                logging.exception(e)
 
+            finally:
+                if not (
+                    len(cls.plugins[module_name].preprocessors)
+                    + len(cls.plugins[module_name].executors)
+                    + len(cls.plugins[module_name].postprocessors)
+                ):
                     del cls.plugins[module_name]
-
-                finally:
-                    if not (
-                        len(cls.plugins[module_name].preprocessors)
-                        + len(cls.plugins[module_name].executors)
-                        + len(cls.plugins[module_name].postprocessors)
-                    ):
-                        del cls.plugins[module_name]
 
         if (
             (path := Path(path_to_import)).is_file()
@@ -92,40 +94,32 @@ class PluginManager:
 
     @classmethod
     @asynccontextmanager
-    async def event_hook(cls, *, ctx: Context) -> AsyncGenerator[Context, None]:
+    async def event_processing(cls, *, ctx: Context) -> AsyncGenerator[Context, None]:
         for proc in sorted(
-            (
-                proc
-                for plugin in cls.plugins.values()
-                for proc in getattr(plugin, "preprocessor")
-            ),
+            (proc for plugin in cls.plugins.values() for proc in plugin.preprocessors),
             key=attrgetter("priority"),
         ):
             await (
                 func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.func)
+                if asyncio.iscoroutinefunction(func := proc.executor)
                 else asyncio.to_thread(func, ctx)
             )
 
         yield ctx
 
         for proc in sorted(
-            (
-                proc
-                for plugin in cls.plugins.values()
-                for proc in getattr(plugin, "postprocessor")
-            ),
+            (proc for plugin in cls.plugins.values() for proc in plugin.postprocessors),
             key=attrgetter("priority"),
         ):
             await (
                 func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.func)
+                if asyncio.iscoroutinefunction(func := proc.executor)
                 else asyncio.to_thread(func, ctx)
             )
 
     @classmethod
     async def run(cls, *, ctx: Context) -> None:
-        async with cls.event_hook(ctx=ctx) as ctx:
+        async with cls.event_processing(ctx=ctx) as ctx:
             event = Event.build_from(ctx=ctx)
 
             if isinstance(event, GroupMessageEvent):
@@ -148,8 +142,9 @@ class PluginManager:
 def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
         PluginManager.plugins[func.__module__].preprocessors.append(
-            SimpleNamespace(priority=priority, func=func)
+            Plugin.Processor(priority=priority, executor=func)
         )
+
         return func
 
     return wrapper
@@ -158,8 +153,9 @@ def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
 def event_postprocessing(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
         PluginManager.plugins[func.__module__].postprocessors.append(
-            SimpleNamespace(priority=priority, func=func)
+            Plugin.Processor(priority=priority, executor=func)
         )
+
         return func
 
     return wrapper
@@ -177,6 +173,7 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
                         with suppress(TypeError):
                             if issubclass(arg, Event):
                                 event_type += (arg,)
+
                 else:
                     with suppress(TypeError):
                         if issubclass(param, Event):

@@ -4,13 +4,15 @@ a lightweight bot framework base on `FastAPI` and `OneBot v11` protocol.
 
 ## Quick Start
 ### Installation
-#### Install from pypi
-```sh
-pip install --no-cache --upgrade fastbot
-```
 #### Install from Github
 ```sh
 pip install --no-cache --upgrade git+https://github.com/omegaisme/fastbot.git
+```
+
+or
+
+```sh
+pip install --no-cache --upgrade https://github.com/omegaisme/fastbot/archive/refs/heads/main.zip
 ```
 
 ### Example
@@ -46,7 +48,7 @@ if __name__ == "__main__":
     (
         FastBot
         # `plugins` parameter will pass to `fastbot.plugin.PluginManager.import_from(...)`
-        # the rest arameter will pass to `FastAPI(...)`
+        # the rest parameter will pass to `FastAPI(...)`
         .build(plugins=["plugins"], lifespan=lifespan)
         # Parameter will pass to `uvicorn.run(...)`
         .run(host="0.0.0.0", port=80)

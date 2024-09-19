@@ -85,8 +85,15 @@ class FastBot:
 
         cls.connector[self_id] = websocket
 
-        async for data in websocket.iter_text():
-            asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
+        while True:
+            try:
+                match message := await websocket.receive():
+                    case {"bytes": data} | {"text": data}:
+                        asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
+                    case _:
+                        logging.warning(f"Unknow websocket message received {message=}")
+            except Exception:
+                break
 
         logging.warning(f"Websocket disconnected {self_id=}")
 
