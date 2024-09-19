@@ -26,6 +26,8 @@ class CommandMatcher(AggratesMatcher):
             prev.append(callback)
 
     def __call__(self, event: GroupMessageEvent | PrivateMessageEvent, *args, **kwargs) -> bool:
+        if event.post_type != 'message':
+            return []
         if not event.text:
             return []
         cmds = event.text.split(self.SEP)
