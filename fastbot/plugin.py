@@ -30,7 +30,7 @@ class Plugin:
     module_name: str
     module_path: str
 
-    state: ContextVar = ContextVar("state", default=True)
+    state: ContextVar = ContextVar('state', default=True)
 
     preprocessors: List[SimpleNamespace] = field(default_factory=list)
     postprocessors: List[SimpleNamespace] = field(default_factory=list)
@@ -52,13 +52,11 @@ class PluginManager:
                 module = module_from_spec(spec)
 
                 try:
-                    cls.plugins[module_name] = Plugin(
-                        module_name=module_name, module_path=module_path
-                    )
+                    plugin = Plugin(module_name=module_name, module_path=module_path)
+                    cls.plugins[module_name] = plugin
 
                     spec.loader.exec_module(module)  # type: ignore
-
-                    logging.info(f"loaded plugin [{module_name}] from [{module_path}]")
+                    logging.info(f'loaded plugin [{module_name}] from [{module_path}]')
 
                 except Exception as e:
                     logging.exception(e)
@@ -67,26 +65,18 @@ class PluginManager:
 
                 finally:
                     if not (
-                        len(cls.plugins[module_name].preprocessors)
-                        + len(cls.plugins[module_name].executors)
-                        + len(cls.plugins[module_name].postprocessors)
+                        len(cls.plugins[module_name].preprocessors) + len(cls.plugins[module_name].executors) + len(cls.plugins[module_name].postprocessors)
                     ):
                         del cls.plugins[module_name]
 
-        if (
-            (path := Path(path_to_import)).is_file()
-            and path.name.endswith(".py")
-            and not path.name.startswith("_")
-        ):
-            load(".".join(path.parts).removesuffix(".py"), str(path))
+        if (path := Path(path_to_import)).is_file() and path.name.endswith('.py') and not path.name.startswith('_'):
+            load('.'.join(path.parts).removesuffix('.py'), str(path))
 
         elif path.is_dir():
-            for file in path.rglob("*.py"):
-                if file.is_file() and not file.name.startswith("_"):
+            for file in path.rglob('*.py'):
+                if file.is_file() and not file.name.startswith('_'):
                     load(
-                        ".".join(file.relative_to(path.parent).parts).removesuffix(
-                            ".py"
-                        ),
+                        '.'.join(file.relative_to(path.parent).parts).removesuffix('.py'),
                         str(file),
                     )
 
@@ -94,34 +84,18 @@ class PluginManager:
     @asynccontextmanager
     async def event_hook(cls, *, ctx: Context) -> AsyncGenerator[Context, None]:
         for proc in sorted(
-            (
-                proc
-                for plugin in cls.plugins.values()
-                for proc in getattr(plugin, "preprocessor")
-            ),
-            key=attrgetter("priority"),
+            (proc for plugin in cls.plugins.values() for proc in plugin.preprocessors),
+            key=attrgetter('priority'),
         ):
-            await (
-                func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.func)
-                else asyncio.to_thread(func, ctx)
-            )
+            await (func(ctx) if asyncio.iscoroutinefunction(func := proc.func) else asyncio.to_thread(func, ctx))
 
         yield ctx
 
         for proc in sorted(
-            (
-                proc
-                for plugin in cls.plugins.values()
-                for proc in getattr(plugin, "postprocessor")
-            ),
-            key=attrgetter("priority"),
+            (proc for plugin in cls.plugins.values() for proc in plugin.postprocessors),
+            key=attrgetter('priority'),
         ):
-            await (
-                func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.func)
-                else asyncio.to_thread(func, ctx)
-            )
+            await (func(ctx) if asyncio.iscoroutinefunction(func := proc.func) else asyncio.to_thread(func, ctx))
 
     @classmethod
     async def run(cls, *, ctx: Context) -> None:
@@ -136,20 +110,12 @@ class PluginManager:
                 if future := event.futures.get(event.user_id):
                     future.set_result(event)
 
-            await asyncio.gather(
-                *(
-                    plugin.run(event)
-                    for plugin in cls.plugins.values()
-                    if plugin.state.get()
-                )
-            )
+            await asyncio.gather(*(plugin.run(event) for plugin in cls.plugins.values() if plugin.state.get()))
 
 
 def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
-        PluginManager.plugins[func.__module__].preprocessors.append(
-            SimpleNamespace(priority=priority, func=func)
-        )
+        PluginManager.plugins[func.__module__].preprocessors.append(SimpleNamespace(priority=priority, func=func))
         return func
 
     return wrapper
@@ -157,9 +123,7 @@ def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
 
 def event_postprocessing(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
-        PluginManager.plugins[func.__module__].postprocessors.append(
-            SimpleNamespace(priority=priority, func=func)
-        )
+        PluginManager.plugins[func.__module__].postprocessors.append(SimpleNamespace(priority=priority, func=func))
         return func
 
     return wrapper

@@ -15,7 +15,7 @@ class MessageEvent(Event):
     _: KW_ONLY
 
     message_type: str
-    post_type: Literal["message"] = "message"
+    post_type: Literal['message'] = 'message'
 
     @classmethod
     @cache
@@ -24,15 +24,15 @@ class MessageEvent(Event):
 
     @classmethod
     def build_from(cls, *, ctx: Context) -> Self:
-        if subclass := cls.subcalsses().get(ctx["message_type"]):
+        if subclass := cls.subcalsses().get(ctx['message_type']):
             return subclass(ctx=ctx, **ctx)
 
         return cls(
             ctx=ctx,
-            time=ctx["time"],
-            self_id=ctx["self_id"],
-            post_type=ctx["post_type"],
-            message_type=ctx["message_type"],
+            time=ctx['time'],
+            self_id=ctx['self_id'],
+            post_type=ctx['post_type'],
+            message_type=ctx['message_type'],
         )
 
 
@@ -53,7 +53,7 @@ class PrivateMessageEvent(MessageEvent):
 
     time: int
     self_id: int
-    sub_type: Literal["friend", "group", "other"]
+    sub_type: Literal['friend', 'group', 'other']
     message_id: int
     user_id: int
     message: Message
@@ -62,27 +62,24 @@ class PrivateMessageEvent(MessageEvent):
     sender: Sender
 
     # go-cqhttp
-    message_seq: int
+    message_seq: int = 0
 
     # napcat
-    real_id: int
-    message_format: str
+    real_id: int = 0
+    message_format: str = ''
 
-    post_type: Literal["message"] = "message"
-    message_type: Literal["private"] = "private"
+    post_type: Literal['message'] = 'message'
+    message_type: Literal['private'] = 'private'
 
     def __post_init__(self) -> None:
-        self.sender = self.__class__.Sender(**(self.ctx["sender"] or {}))
-        self.message = Message(
-            MessageSegment(type=msg["type"], data=msg["data"])
-            for msg in self.ctx["message"]
-        ).compact()
+        self.sender = self.__class__.Sender(**(self.ctx['sender'] or {}))
+        self.message = Message(MessageSegment(type=msg['type'], data=msg['data']) for msg in self.ctx['message']).compact()
 
         logging.info(
             shorten(
-                f"[{self.__class__.__name__}][Sender={self.sender.nickname}({self.user_id})]: {self.text}",
+                f'[{self.__class__.__name__}][Sender={self.sender.nickname}({self.user_id})]: {self.text}',
                 width=79,
-                placeholder="...",
+                placeholder='...',
             )
         )
 
@@ -91,7 +88,7 @@ class PrivateMessageEvent(MessageEvent):
 
     async def send(self, message: str | Message | MessageSegment) -> Any:
         return await FastBot.do(
-            endpoint="send_private_msg ",
+            endpoint='send_private_msg ',
             message=[asdict(msg) for msg in Message(message).compact()],
             self_id=self.self_id,
             user_id=self.user_id,
@@ -110,9 +107,7 @@ class PrivateMessageEvent(MessageEvent):
 
     @cached_property
     def text(self) -> str:
-        return "".join(
-            segment.data["text"] for segment in self.message if segment.type == "text"
-        )
+        return ''.join(segment.data['text'] for segment in self.message if segment.type == 'text')
 
 
 @dataclass
@@ -145,7 +140,7 @@ class GroupMessageEvent(MessageEvent):
 
     time: int
     self_id: int
-    sub_type: Literal["normal", "anonymous", "notice"]
+    sub_type: Literal['normal', 'anonymous', 'notice']
     message_id: int
     group_id: int
     user_id: int
@@ -153,44 +148,38 @@ class GroupMessageEvent(MessageEvent):
     raw_message: str
     font: int
     sender: Sender
+    to_me: bool
 
     # go-cqhttp
-    message_seq: int
+    message_seq: int = 0
 
     # napcat
-    real_id: int
-    message_format: str
+    real_id: int = 0
+    message_format: str = ''
 
     anonymous: Anonymous | None = None
-    post_type: Literal["message"] = "message"
-    message_type: Literal["group"] = "group"
+    post_type: Literal['message'] = 'message'
+    message_type: Literal['group'] = 'group'
 
     def __post_init__(self) -> None:
-        self.anonymous = self.__class__.Anonymous(
-            **(self.ctx.get("anonymous", {}) or {})
-        )
-        self.sender = self.__class__.Sender(**(self.ctx["sender"] or {}))
-        self.message = Message(
-            MessageSegment(type=msg["type"], data=msg["data"])
-            for msg in self.ctx["message"]
-        ).compact()
+        self.anonymous = self.__class__.Anonymous(**(self.ctx.get('anonymous', {}) or {}))
+        self.sender = self.__class__.Sender(**(self.ctx['sender'] or {}))
+        self.message = Message(MessageSegment(type=msg['type'], data=msg['data']) for msg in self.ctx['message']).compact()
 
         logging.info(
             shorten(
-                f"[{self.__class__.__name__}][Group={self.group_id}][Sender={self.sender.nickname}({self.user_id})]: {self.text}",
+                f'[{self.__class__.__name__}][Group={self.group_id}][Sender={self.sender.nickname}({self.user_id})]: {self.text}',
                 width=79,
-                placeholder="...",
+                placeholder='...',
             )
         )
 
     def __hash__(self) -> int:
-        return hash(
-            (self.group_id, self.user_id, self.self_id, self.time, self.raw_message)
-        )
+        return hash((self.group_id, self.user_id, self.self_id, self.time, self.raw_message))
 
     async def send(self, message: str | MessageSegment | Message) -> Any:
         return await FastBot.do(
-            endpoint="send_group_msg",
+            endpoint='send_group_msg',
             message=[asdict(msg) for msg in Message(message).compact()],
             self_id=self.self_id,
             group_id=self.group_id,
@@ -209,6 +198,4 @@ class GroupMessageEvent(MessageEvent):
 
     @cached_property
     def text(self) -> str:
-        return "".join(
-            segment.data["text"] for segment in self.message if segment.type == "text"
-        )
+        return ''.join(segment.data['text'] for segment in self.message if segment.type == 'text')
