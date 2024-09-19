@@ -44,6 +44,8 @@ class Plugin:
 @dataclass
 class PluginManager:
     plugins: ClassVar[Dict[str, Plugin]] = {}
+    aggrate_matchers: ClassVar[Dict[str, Matcher]] = {}
+    """聚合匹配器"""
 
     @classmethod
     def import_from(cls, path_to_import: str) -> None:
@@ -64,9 +66,7 @@ class PluginManager:
                     del cls.plugins[module_name]
 
                 finally:
-                    if not (
-                        len(cls.plugins[module_name].preprocessors) + len(cls.plugins[module_name].executors) + len(cls.plugins[module_name].postprocessors)
-                    ):
+                    if not (len(plugin.preprocessors) + len(plugin.executors) + len(plugin.postprocessors)):
                         del cls.plugins[module_name]
 
         if (path := Path(path_to_import)).is_file() and path.name.endswith('.py') and not path.name.startswith('_'):
@@ -112,6 +112,12 @@ class PluginManager:
 
             await asyncio.gather(*(plugin.run(event) for plugin in cls.plugins.values() if plugin.state.get()))
 
+            callbacks = []
+            for matcher in cls.aggrate_matchers.values():
+                if cbs := matcher(event):
+                    callbacks.extend(cbs)
+            await asyncio.gather(*(callback(event) for callback in callbacks))
+
 
 def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -133,6 +139,10 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
     if matcher:
 
         def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+            if matcher.is_aggrated:
+                PluginManager.aggrate_matchers[matcher.__class__.__name__] = matcher
+                matcher.aggrate(func)
+                return func
             event_type = tuple()
 
             for param in func.__annotations__.values():
