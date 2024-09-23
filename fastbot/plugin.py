@@ -1,22 +1,11 @@
 import asyncio
 import logging
-from contextlib import asynccontextmanager, suppress
+from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import KW_ONLY, dataclass, field
-
-from operator import attrgetter
 from pathlib import Path
 from types import UnionType
-from typing import (
-    Any,
-    AsyncGenerator,
-    Callable,
-    ClassVar,
-    Dict,
-    List,
-    _UnionGenericAlias,  # type: ignore
-    get_args,
-)
+from typing import Any, Callable, ClassVar, Dict, List, Union, get_args, get_origin
 
 from fastbot.event import Context, Event
 from fastbot.event.message import GroupMessageEvent, PrivateMessageEvent
@@ -25,20 +14,18 @@ from fastbot.matcher import Matcher
 
 @dataclass
 class Plugin:
-    @dataclass
-    class Processor:
+    @dataclass(order=True)
+    class Middleware:
         _: KW_ONLY
 
         priority: int = 0
-        executor: Callable[[Context], Any]
+        executor: Callable[[Context], Any] = field(compare=False)
 
     _: KW_ONLY
 
     state: ContextVar = ContextVar("state", default=True)
 
-    preprocessors: List[Processor] = field(default_factory=list)
-    postprocessors: List[Processor] = field(default_factory=list)
-
+    middlewares: List[Middleware] = field(default_factory=list)
     executors: List[Callable[..., Any]] = field(default_factory=list)
 
     async def run(self, event: Event) -> None:
@@ -54,10 +41,10 @@ class PluginManager:
         from importlib.util import module_from_spec, spec_from_file_location
 
         def load(module_name: str, module_path: str) -> None:
-            spec = spec_from_file_location(module_name, module_path)
-            module = module_from_spec(spec)  # type: ignore
-
             try:
+                spec = spec_from_file_location(module_name, module_path)
+                module = module_from_spec(spec)  # type: ignore
+
                 cls.plugins[module_name] = Plugin()
 
                 spec.loader.exec_module(module)  # type: ignore
@@ -68,10 +55,9 @@ class PluginManager:
                 logging.exception(e)
 
             finally:
-                if not (
-                    len(cls.plugins[module_name].preprocessors)
-                    + len(cls.plugins[module_name].executors)
-                    + len(cls.plugins[module_name].postprocessors)
+                if (
+                    not cls.plugins[module_name].middlewares
+                    and not cls.plugins[module_name].executors
                 ):
                     del cls.plugins[module_name]
 
@@ -93,67 +79,44 @@ class PluginManager:
                     )
 
     @classmethod
-    @asynccontextmanager
-    async def event_processing(cls, *, ctx: Context) -> AsyncGenerator[Context, None]:
-        for proc in sorted(
-            (proc for plugin in cls.plugins.values() for proc in plugin.preprocessors),
-            key=attrgetter("priority"),
-        ):
-            await (
-                func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.executor)
-                else asyncio.to_thread(func, ctx)
-            )
-
-        yield ctx
-
-        for proc in sorted(
-            (proc for plugin in cls.plugins.values() for proc in plugin.postprocessors),
-            key=attrgetter("priority"),
-        ):
-            await (
-                func(ctx)
-                if asyncio.iscoroutinefunction(func := proc.executor)
-                else asyncio.to_thread(func, ctx)
-            )
-
-    @classmethod
     async def run(cls, *, ctx: Context) -> None:
-        async with cls.event_processing(ctx=ctx) as ctx:
-            event = Event.build_from(ctx=ctx)
-
-            if isinstance(event, GroupMessageEvent):
-                if future := event.futures.get((event.group_id, event.user_id)):
-                    future.set_result(event)
-
-            elif isinstance(event, PrivateMessageEvent):
-                if future := event.futures.get(event.user_id):
-                    future.set_result(event)
-
-            await asyncio.gather(
-                *(
-                    plugin.run(event)
-                    for plugin in cls.plugins.values()
-                    if plugin.state.get()
-                )
+        for middleware in sorted(
+            middleware
+            for plugin in cls.plugins.values()
+            for middleware in plugin.middlewares
+        ):
+            await (
+                func(ctx)
+                if asyncio.iscoroutinefunction(func := middleware.executor)
+                else asyncio.to_thread(func, ctx)
             )
 
+            if not ctx:
+                return
 
-def event_preprocessing(*, priority: int = 0) -> Callable[..., Any]:
-    def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
-        PluginManager.plugins[func.__module__].preprocessors.append(
-            Plugin.Processor(priority=priority, executor=func)
+        event = Event.build_from(ctx=ctx)
+
+        if isinstance(event, GroupMessageEvent):
+            if future := event.futures.get((event.group_id, event.user_id)):
+                future.set_result(event)
+
+        elif isinstance(event, PrivateMessageEvent):
+            if future := event.futures.get(event.user_id):
+                future.set_result(event)
+
+        await asyncio.gather(
+            *(
+                plugin.run(event)
+                for plugin in cls.plugins.values()
+                if plugin.state.get()
+            )
         )
 
-        return func
 
-    return wrapper
-
-
-def event_postprocessing(*, priority: int = 0) -> Callable[..., Any]:
+def middleware(*, priority: int = 0) -> Callable[..., Any]:
     def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
-        PluginManager.plugins[func.__module__].postprocessors.append(
-            Plugin.Processor(priority=priority, executor=func)
+        PluginManager.plugins[func.__module__].middlewares.append(
+            Plugin.Middleware(priority=priority, executor=func)
         )
 
         return func
@@ -168,7 +131,7 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
             event_type = tuple()
 
             for param in func.__annotations__.values():
-                if isinstance(param, (UnionType, _UnionGenericAlias)):
+                if get_origin(param) in (Union, UnionType):
                     for arg in get_args(param):
                         with suppress(TypeError):
                             if issubclass(arg, Event):
@@ -179,13 +142,11 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
                         if issubclass(param, Event):
                             event_type += (param,)
 
-            event_type = tuple(event_type)
-
-            async def wrapper(event: Event, *args, **kwargs) -> Any:
+            async def wrapper(event: Event) -> Callable[[Event], Any] | None:
                 if not isinstance(event, event_type) or not matcher(event):
                     return
 
-                return await func(event, *args, **kwargs)
+                return await func(event)
 
             PluginManager.plugins[func.__module__].executors.append(wrapper)
 
@@ -197,21 +158,22 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
             event_type = tuple()
 
             for param in func.__annotations__.values():
-                if isinstance(param, (UnionType, _UnionGenericAlias)):
+                if get_origin(param) in (Union, UnionType):
                     for arg in get_args(param):
                         with suppress(TypeError):
                             if issubclass(arg, Event):
                                 event_type += (arg,)
+
                 else:
                     with suppress(TypeError):
                         if issubclass(param, Event):
                             event_type += (param,)
 
-            async def wrapper(event: Event, *args, **kwargs) -> Any:
+            async def wrapper(event: Event) -> Callable[[Event], Any] | None:
                 if not isinstance(event, event_type):
                     return
 
-                return await func(event, *args, **kwargs)
+                return await func(event)
 
             PluginManager.plugins[func.__module__].executors.append(wrapper)
 

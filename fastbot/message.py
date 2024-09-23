@@ -285,111 +285,15 @@ class MessageSegment:
 
     @classmethod
     def at(cls, qq: int | Literal["all"]) -> Self:
-        return cls(type="at", data={"qq": qq})
-
-    @classmethod
-    def rps(cls) -> Self:
-        return cls(type="rps")
-
-    @classmethod
-    def dice(cls) -> Self:
-        return cls(type="dice")
-
-    @classmethod
-    def shake(cls) -> Self:
-        return cls(type="shake")
-
-    @classmethod
-    def poke(cls) -> Self:
-        return cls(type="poke")
-
-    @classmethod
-    def anonymous(cls) -> Self:
-        return cls(type="anonymous")
-
-    @classmethod
-    def share(
-        cls, url: str, title: str, content: str | None = None, image: str | None = None
-    ) -> Self:
-        return cls(
-            type="share",
-            data={"url": url, "title": title, "content": content, "image": image},
-        )
-
-    @classmethod
-    def contact(cls, type: Literal["qq", "group"], id: int) -> Self:
-        return cls(type="contact", data={"type": type, "id": id})
-
-    @classmethod
-    def location(
-        cls,
-        lat: float,
-        lon: float,
-        title: str | None = None,
-        content: str | None = None,
-    ) -> Self:
-        return cls(
-            type="location",
-            data={"lat": lat, "lon": lon, "title": title, "content": content},
-        )
-
-    @classmethod
-    def music(
-        cls,
-        type: Literal["custom", "qq", "163", "xm"],
-        id: int | None = None,
-        url: str | None = None,
-        audio: str | None = None,
-        title: str | None = None,
-        content: str | None = None,
-        image: str | None = None,
-    ) -> Self:
-        return cls(
-            type="music",
-            data={
-                "type": type,
-                "id": id,
-                "url": url,
-                "audio": audio,
-                "title": title,
-                "content": content,
-                "image": image,
-            },
-        )
+        return cls(type="at", data={"qq": str(qq)})
 
     @classmethod
     def reply(cls, id: int) -> Self:
-        return cls(type="reply", data={"id": id})
+        return cls(type="reply", data={"id": str(id)})
 
     @classmethod
     def forward(cls, id: int) -> Self:
-        return cls(type="forward", data={"id": id})
-
-    @classmethod
-    def node(
-        cls,
-        id: int | None = None,
-        user_id: int | None = None,
-        nickname: str | None = None,
-        content: Union[str, "Message", None] = None,
-    ) -> Self:
-        return cls(
-            type="node",
-            data={
-                "id": id,
-                "user_id": user_id,
-                "nickname": nickname,
-                "content": content,
-            },
-        )
-
-    @classmethod
-    def xml(cls, data: str) -> Self:
-        return cls(type="xml", data={"data": data})
-
-    @classmethod
-    def json(cls, data: str) -> Self:
-        return cls(type="json", data={"data": data})
+        return cls(type="forward", data={"id": str(id)})
 
 
 class Message(Link):

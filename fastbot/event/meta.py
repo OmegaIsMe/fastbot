@@ -54,3 +54,6 @@ class HeartbeatMetaEvent(MetaEvent):
 
     post_type: Literal["meta_event"] = "meta_event"
     meta_event_type: Literal["heartbeat"] = "heartbeat"
+
+    def __post_init__(self):
+        self.status = SimpleNamespace(**self.ctx["status"])

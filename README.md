@@ -61,7 +61,7 @@ if __name__ == "__main__":
 from fastbot.event import Context
 from fastbot.event.message import GroupMessageEvent, PrivateMessageEvent
 from fastbot.matcher import Matcher
-from fastbot.plugin import PluginManager, event_preprocessing, on
+from fastbot.plugin import PluginManager, middleware, on
 
 # Passing rules to the matcher
 IsNotGroupAdmin = Matcher(rule=lambda event: event.sender.role != "admin")
@@ -76,16 +76,20 @@ class IsInGroupBlacklist(Matcher):
         return event.group_id in self.blacklist
 
 
-# all processors will be executed in sequence.
-@event_preprocessing(priority=0)
+# All middlewares will be executed in sequence.
+@middleware(priority=0)
 async def preprocessing(ctx: Context):
-    if ctx.get("group_id") == ...:
+    if (group_id := ctx.get("group_id")) == ...:
         # In event processing, temporarily close the plugin
         PluginManager.plugins["plugins.plugin_example"].state.set(False)
+    elif group_id is None:
+        # When the `Context` is empty, the middleware will discard
+        # and terminate event construction and processing.
+        ctx.clear()
 
 
 # Combining multiple rules via `&(and)`, `|(or)`,`~(not)`
-@on(matcher=IsNotGroupAdmin & IsInGroupBlacklist(...))
+@on(matcher=IsNotGroupAdmin & ~IsInGroupBlacklist(...))
 # For the best performance, you can use `callable function`
 # E.g. `lambda event: event.get("group_id") in (...)`
 async def func(

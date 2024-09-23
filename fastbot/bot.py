@@ -31,7 +31,7 @@ class FastBot:
     app: ClassVar[FastAPI]
 
     connector: ClassVar[WeakValueDictionary[str, WebSocket]] = WeakValueDictionary()
-    futures: ClassVar[WeakValueDictionary[int, asyncio.Future]] = WeakValueDictionary()
+    futures: ClassVar[WeakValueDictionary[str, asyncio.Future]] = WeakValueDictionary()
 
     def __init__(self, app: FastAPI | None = None, *args, **kwargs) -> None:
         self.__class__.app = app or FastAPI(*args, **kwargs)
@@ -118,14 +118,18 @@ class FastBot:
     @classmethod
     async def do(cls, *, endpoint: str, self_id: int, **kwargs) -> Any:
         future = asyncio.Future()
-        future_id = id(future)
+        future_id = str(id(future))
 
         logging.debug(f"{endpoint=} {self_id=} {kwargs=}")
 
         cls.futures[future_id] = future
 
-        await cls.connector[str(self_id)].send_text(
-            json.dumps({"action": endpoint, "params": kwargs, "echo": future_id})
+        await cls.connector[str(self_id)].send_bytes(
+            (
+                json.dumps(
+                    {"action": endpoint, "params": kwargs, "echo": future_id}
+                ).encode(encoding="utf-8")
+            )
         )
 
         return await future

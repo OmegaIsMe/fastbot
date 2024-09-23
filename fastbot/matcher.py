@@ -1,4 +1,3 @@
-import logging
 from dataclasses import KW_ONLY, dataclass, field
 from typing import Callable, List
 
@@ -12,19 +11,13 @@ class Matcher:
     operator: str | None = None
 
     def __call__(self, *args, **kwargs) -> bool:
-        try:
-            if self.operator:
-                if self.operator == "and":
-                    return all(matcher(*args, **kwargs) for matcher in self.matchers)
-                elif self.operator == "or":
-                    return any(matcher(*args, **kwargs) for matcher in self.matchers)
-                else:
-                    raise ValueError(f"Invalid operator: {self.operator}")
-            else:
+        match self.operator:
+            case "and":
+                return all(matcher(*args, **kwargs) for matcher in self.matchers)
+            case "or":
+                return any(matcher(*args, **kwargs) for matcher in self.matchers)
+            case _:
                 return self.rule(*args, **kwargs)
-        except Exception as e:
-            logging.exception(f"Error in matcher: {self.rule.__name__}: {e}")
-            return False
 
     def __and__(self, other: "Matcher") -> "Matcher":
         if self.operator == "and":
@@ -42,10 +35,3 @@ class Matcher:
 
     def __invert__(self) -> "Matcher":
         return Matcher(rule=lambda *args, **kwargs: not self(*args, **kwargs))
-
-    def __repr__(self) -> str:
-        if self.operator:
-            matchers_str = ", ".join([m.rule.__name__ for m in self.matchers])
-            return f"Match({self.operator}, [{matchers_str}])"
-        else:
-            return f"Match({self.rule.__name__})"
