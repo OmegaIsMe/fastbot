@@ -1,4 +1,5 @@
 import asyncio
+from functools import cache
 import logging
 from contextlib import suppress
 from contextvars import ContextVar
@@ -79,12 +80,18 @@ class PluginManager:
                     )
 
     @classmethod
-    async def run(cls, *, ctx: Context) -> None:
-        for middleware in sorted(
+    @property
+    @cache
+    def middlewares(cls) -> List[Plugin.Middleware]:
+        return sorted(
             middleware
             for plugin in cls.plugins.values()
             for middleware in plugin.middlewares
-        ):
+        )
+
+    @classmethod
+    async def run(cls, *, ctx: Context) -> None:
+        for middleware in cls.middlewares:
             await (
                 func(ctx)
                 if asyncio.iscoroutinefunction(func := middleware.executor)
