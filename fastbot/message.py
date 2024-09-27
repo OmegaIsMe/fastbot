@@ -209,7 +209,7 @@ class MessageSegment:
         return Message(self) + other
 
     def __radd__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
-        return self + Message(other)
+        return Message(other) + self
 
     @classmethod
     def text(cls, text: str) -> Self:
