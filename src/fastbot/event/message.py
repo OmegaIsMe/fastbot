@@ -5,7 +5,6 @@ from functools import cache, cached_property
 from textwrap import shorten
 from typing import Any, ClassVar, Dict, Literal, Self, Tuple
 
-from fastbot.bot import FastBot
 from fastbot.event import Context, Event
 from fastbot.message import Message, MessageSegment
 
@@ -90,7 +89,7 @@ class PrivateMessageEvent(MessageEvent):
         return hash((self.user_id, self.time, self.self_id, self.raw_message))
 
     async def send(self, message: str | Message | MessageSegment) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="send_private_msg ",
             message=[asdict(msg) for msg in Message(message).compact()],
             self_id=self.self_id,
@@ -189,7 +188,7 @@ class GroupMessageEvent(MessageEvent):
         )
 
     async def send(self, message: str | MessageSegment | Message) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="send_group_msg",
             message=[asdict(msg) for msg in Message(message).compact()],
             self_id=self.self_id,

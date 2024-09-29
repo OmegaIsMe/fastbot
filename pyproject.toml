@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fastbot"
+version = "1.0.0"
+dependencies = ["fastapi", "uvicorn", "websockets"]
+requires-python = ">=3"
+authors = [{name = "Oi", email = "oi@example.com"}]
+maintainers = [{name = "Oi", email = "oi@example.com"}]
+description = "A Lightweight BOT Framework ."
+readme = "README.md"
+license = {file = "LICENSE"}
+keywords = ["BOT", "OneBot", "OneBot v11", "FastAPI"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+]
+
+[project.urls]
+Homepage = "https://github.com/omegaisme/fastbot"
+Documentation = "https://github.com/omegaisme/fastbot"
+Repository = "https://github.com/omegaisme/fastbot.git"
+Changelog = "https://github.com/omegaisme/fastbot/CHANGELOG.md"

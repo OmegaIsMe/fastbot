@@ -80,7 +80,6 @@ class PluginManager:
                     )
 
     @classmethod
-    @property
     @cache
     def middlewares(cls) -> List[Plugin.Middleware]:
         return sorted(
@@ -91,7 +90,7 @@ class PluginManager:
 
     @classmethod
     async def run(cls, *, ctx: Context) -> None:
-        for middleware in cls.middlewares:
+        for middleware in cls.middlewares():
             await (
                 func(ctx)
                 if asyncio.iscoroutinefunction(func := middleware.executor)

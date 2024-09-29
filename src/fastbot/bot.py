@@ -8,8 +8,6 @@ from weakref import WeakValueDictionary
 
 from fastapi import FastAPI, WebSocket, WebSocketException, status
 
-from fastbot.exception import APIException
-
 try:
     import ujson as json
 
@@ -109,7 +107,7 @@ class FastBot:
                 (
                     cls.futures[ctx["echo"]].set_result(ctx.get("data"))
                     if ctx["status"] != "fail"
-                    else cls.futures[ctx["echo"]].set_exception(APIException(ctx))
+                    else cls.futures[ctx["echo"]].set_exception(RuntimeError(ctx))
                 )
 
         except Exception as e:

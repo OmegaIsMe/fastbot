@@ -1,8 +1,9 @@
+import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
+from textwrap import shorten
 from typing import Any, Dict, Literal, Self
 
-from fastbot.bot import FastBot
 from fastbot.event import Context, Event
 
 
@@ -44,8 +45,17 @@ class FriendRequestEvent(RequestEvent):
     post_type: Literal["request"] = "request"
     request_type: Literal["friend"] = "friend"
 
+    def __post_init__(self) -> None:
+        logging.info(
+            shorten(
+                f"[{self.__class__.__name__}][User={self.user_id}]: {self.comment}",
+                width=79,
+                placeholder="...",
+            )
+        )
+
     async def approve(self, *, remark: str | None = None) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="set_friend_add_request",
             self_id=self.self_id,
             approve=True,
@@ -54,7 +64,7 @@ class FriendRequestEvent(RequestEvent):
         )
 
     async def reject(self) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="set_friend_add_request", self_id=self.self_id, approve=False
         )
 
@@ -74,8 +84,17 @@ class GroupRequestEvent(RequestEvent):
     post_type: Literal["request"] = "request"
     request_type: Literal["group"] = "group"
 
+    def __post_init__(self) -> None:
+        logging.info(
+            shorten(
+                f"[{self.__class__.__name__}][User={self.user_id}][Group={self.group_id}]: {self.comment}",
+                width=79,
+                placeholder="...",
+            )
+        )
+
     async def approve(self) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="set_group_add_request",
             self_id=self.self_id,
             approve=True,
@@ -83,7 +102,7 @@ class GroupRequestEvent(RequestEvent):
         )
 
     async def reject(self, *, reason: str | None = None) -> Any:
-        return await FastBot.do(
+        return await self.bot.do(
             endpoint="set_group_add_request",
             self_id=self.self_id,
             approve=False,
