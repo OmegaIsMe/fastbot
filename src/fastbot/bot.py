@@ -44,20 +44,19 @@ class FastBot:
                 )
 
             match access_token.split():
-                case [header, token] if header.title() in (
-                    "Bearer",
-                    "Token",
-                ) and token != authorization:
-                    raise WebSocketException(
-                        code=status.HTTP_403_FORBIDDEN,
-                        reason="Invalid `authorization` header",
-                    )
+                case [header, token] if header.title() in ("Bearer", "Token"):
+                    if token != authorization:
+                        raise WebSocketException(
+                            code=status.HTTP_403_FORBIDDEN,
+                            reason="Invalid `authorization` header",
+                        )
 
-                case [token] if token != authorization:
-                    raise WebSocketException(
-                        code=status.HTTP_403_FORBIDDEN,
-                        reason="Invalid `authorization` header",
-                    )
+                case [token]:
+                    if token != authorization:
+                        raise WebSocketException(
+                            code=status.HTTP_403_FORBIDDEN,
+                            reason="Invalid `authorization` header",
+                        )
 
                 case _:
                     raise WebSocketException(
