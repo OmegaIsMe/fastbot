@@ -45,7 +45,7 @@ class FastBot:
 
             match access_token.split():
                 case [header, token] if header.title() in (
-                    "Bear",
+                    "Bearer",
                     "Token",
                 ) and token != authorization:
                     raise WebSocketException(
