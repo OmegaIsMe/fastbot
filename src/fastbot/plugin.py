@@ -1,9 +1,9 @@
 import asyncio
-from functools import cache
 import logging
 from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import KW_ONLY, dataclass, field
+from functools import cache, wraps
 from pathlib import Path
 from types import UnionType
 from typing import Any, Callable, ClassVar, Dict, List, Union, get_args, get_origin
@@ -148,6 +148,7 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
                         if issubclass(param, Event):
                             event_type += (param,)
 
+            @wraps(func)
             async def wrapper(event: Event) -> Callable[[Event], Any] | None:
                 if not isinstance(event, event_type) or not matcher(event):
                     return
@@ -175,6 +176,7 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
                         if issubclass(param, Event):
                             event_type += (param,)
 
+            @wraps(func)
             async def wrapper(event: Event) -> Callable[[Event], Any] | None:
                 if not isinstance(event, event_type):
                     return

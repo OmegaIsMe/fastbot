@@ -3,8 +3,7 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Iterable, Self
-from weakref import WeakValueDictionary
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Iterable, Self
 
 from fastapi import FastAPI, WebSocket, WebSocketException, status
 
@@ -28,8 +27,8 @@ if TYPE_CHECKING:
 class FastBot:
     app: ClassVar[FastAPI]
 
-    connector: ClassVar[WeakValueDictionary[str, WebSocket]] = WeakValueDictionary()
-    futures: ClassVar[WeakValueDictionary[str, asyncio.Future]] = WeakValueDictionary()
+    connector: ClassVar[Dict[int, WebSocket]] = {}
+    futures: ClassVar[Dict[int, asyncio.Future]] = {}
 
     def __init__(self, app: FastAPI | None = None, *args, **kwargs) -> None:
         self.__class__.app = app or FastAPI(*args, **kwargs)
@@ -70,7 +69,7 @@ class FastBot:
                 reason="Missing `x-self-id` header",
             )
 
-        if self_id in cls.connector:
+        if int(self_id) in cls.connector:
             raise WebSocketException(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="Duplicate `x-self-id` header",
@@ -80,19 +79,22 @@ class FastBot:
 
         logging.info(f"Websocket connected {self_id=}")
 
-        cls.connector[self_id] = websocket
+        cls.connector[int(self_id)] = websocket
 
-        while True:
-            try:
+        try:
+            while True:
                 match message := await websocket.receive():
                     case {"bytes": data} | {"text": data}:
                         asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
                     case _:
                         logging.warning(f"Unknow websocket message received {message=}")
-            except Exception:
-                break
 
-        logging.warning(f"Websocket disconnected {self_id=}")
+        except Exception as e:
+            logging.exception(e)
+
+        finally:
+            logging.warning(f"Websocket disconnected {self_id=}")
+            del cls.connector[int(self_id)]
 
     @classmethod
     async def event_handler(cls, ctx: "Context") -> None:
@@ -113,23 +115,28 @@ class FastBot:
             logging.exception(e)
 
     @classmethod
-    async def do(cls, *, endpoint: str, self_id: int, **kwargs) -> Any:
+    async def do(cls, *, endpoint: str, self_id: int | str, **kwargs) -> Any:
         future = asyncio.Future()
-        future_id = str(id(future))
+        future_id = id(future)
 
         logging.debug(f"{endpoint=} {self_id=} {kwargs=}")
 
         cls.futures[future_id] = future
 
-        await cls.connector[str(self_id)].send_bytes(
-            (
+        try:
+            await cls.connector[int(self_id)].send_bytes(
                 json.dumps(
                     {"action": endpoint, "params": kwargs, "echo": future_id}
                 ).encode(encoding="utf-8")
             )
-        )
 
-        return await future
+            return await future
+
+        except Exception as e:
+            logging.exception(e)
+
+        finally:
+            del cls.futures[future_id]
 
     @classmethod
     def build(

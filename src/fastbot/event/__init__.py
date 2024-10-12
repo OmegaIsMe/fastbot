@@ -1,8 +1,6 @@
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
-from typing import Any, ClassVar, Dict, Literal, Self, Type, TypeAlias
-
-from fastbot.bot import FastBot
+from typing import Any, Dict, Literal, Self, TypeAlias
 
 Context: TypeAlias = Dict[str, Any]
 
@@ -10,8 +8,6 @@ Context: TypeAlias = Dict[str, Any]
 @dataclass
 class Event:
     _: KW_ONLY
-
-    bot: ClassVar[Type[FastBot]] = FastBot
 
     ctx: Context
 
