@@ -1,3 +1,4 @@
+import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
 from typing import Any, Dict, Literal, Self
@@ -55,6 +56,8 @@ class GroupFileUploadNoticeEvent(NoticeEvent):
     def __post_init__(self) -> None:
         self.file = self.__class__.File(**(self.ctx["file"] or {}))
 
+        logging.debug(self.__repr__())
+
 
 @dataclass
 class GroupAdminChangeNoticeEvent(NoticeEvent):
@@ -68,6 +71,9 @@ class GroupAdminChangeNoticeEvent(NoticeEvent):
 
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_admin"] = "group_admin"
+
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
 
 
 @dataclass
@@ -84,6 +90,9 @@ class GroupMemberDecreaseNoticeEvent(NoticeEvent):
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_decrease"] = "group_decrease"
 
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
+
 
 @dataclass
 class GroupMemberIncreaseNoticeEvent(NoticeEvent):
@@ -98,6 +107,9 @@ class GroupMemberIncreaseNoticeEvent(NoticeEvent):
 
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_increase"] = "group_increase"
+
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
 
 
 @dataclass
@@ -115,6 +127,9 @@ class GroupBanNoticeEvent(NoticeEvent):
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_ban"] = "group_ban"
 
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
+
 
 @dataclass
 class FriendAddNoticeEvent(NoticeEvent):
@@ -126,6 +141,9 @@ class FriendAddNoticeEvent(NoticeEvent):
 
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["friend_add"] = "friend_add"
+
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
 
 
 @dataclass
@@ -142,6 +160,9 @@ class GroupMessageRecallNoticeEvent(NoticeEvent):
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_recall"] = "group_recall"
 
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
+
 
 @dataclass
 class FriendMessageRecallNoticeEvent(NoticeEvent):
@@ -154,3 +175,6 @@ class FriendMessageRecallNoticeEvent(NoticeEvent):
 
     post_type: Literal["notice"] = "notice"
     notice_type: Literal["friend_recall"] = "friend_recall"
+
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())

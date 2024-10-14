@@ -1,5 +1,6 @@
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
+import logging
 from types import SimpleNamespace
 from typing import Any, Dict, Literal, Self
 
@@ -42,6 +43,9 @@ class LifecycleMetaEvent(MetaEvent):
     post_type: Literal["meta_event"] = "meta_event"
     meta_event_type: Literal["lifecycle"] = "lifecycle"
 
+    def __post_init__(self) -> None:
+        logging.debug(self.__repr__())
+
 
 @dataclass
 class HeartbeatMetaEvent(MetaEvent):
@@ -57,3 +61,5 @@ class HeartbeatMetaEvent(MetaEvent):
 
     def __post_init__(self):
         self.status = SimpleNamespace(**self.ctx["status"])
+
+        logging.debug(self.__repr__())

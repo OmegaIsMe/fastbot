@@ -4,12 +4,12 @@ from contextlib import suppress
 from contextvars import ContextVar
 from dataclasses import KW_ONLY, dataclass, field
 from functools import cache, wraps
+from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 from types import UnionType
 from typing import Any, Callable, ClassVar, Dict, List, Union, get_args, get_origin
 
 from fastbot.event import Context, Event
-from fastbot.event.message import GroupMessageEvent, PrivateMessageEvent
 from fastbot.matcher import Matcher
 
 
@@ -39,8 +39,6 @@ class PluginManager:
 
     @classmethod
     def import_from(cls, path_to_import: str) -> None:
-        from importlib.util import module_from_spec, spec_from_file_location
-
         def load(module_name: str, module_path: str) -> None:
             try:
                 spec = spec_from_file_location(module_name, module_path)
@@ -56,9 +54,9 @@ class PluginManager:
                 logging.exception(e)
 
             finally:
-                if (
-                    not cls.plugins[module_name].middlewares
-                    and not cls.plugins[module_name].executors
+                if not any(
+                    cls.plugins[module_name].middlewares
+                    + cls.plugins[module_name].executors
                 ):
                     del cls.plugins[module_name]
 
@@ -102,14 +100,6 @@ class PluginManager:
 
         event = Event.build_from(ctx=ctx)
 
-        if isinstance(event, GroupMessageEvent):
-            if future := event.futures.get((event.group_id, event.user_id)):
-                future.set_result(event)
-
-        elif isinstance(event, PrivateMessageEvent):
-            if future := event.futures.get(event.user_id):
-                future.set_result(event)
-
         await asyncio.gather(
             *(
                 plugin.run(event)
@@ -150,7 +140,7 @@ def on(matcher: Matcher | Callable[[Event], bool] | None = None):
 
             @wraps(func)
             async def wrapper(event: Event) -> Callable[[Event], Any] | None:
-                if not isinstance(event, event_type) or not matcher(event):
+                if not (isinstance(event, event_type) and matcher(event)):
                     return
 
                 return await func(event)

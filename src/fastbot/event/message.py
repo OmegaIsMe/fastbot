@@ -2,11 +2,10 @@ import asyncio
 import logging
 from dataclasses import KW_ONLY, asdict, dataclass
 from functools import cache, cached_property
-from textwrap import shorten
 from typing import Any, ClassVar, Dict, List, Literal, Self, Tuple
 
-from fastbot.event import Context, Event
 from fastbot.bot import FastBot
+from fastbot.event import Context, Event
 from fastbot.message import Message, MessageSegment
 
 
@@ -87,9 +86,10 @@ class PrivateMessageEvent(MessageEvent):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        logging.info(
-            f"[{self.__class__.__name__}][Sender={self.sender.nickname}({self.user_id})]: {shorten(self.text, width=79, placeholder='...')}"
-        )
+        if future := self.__class__.futures.get(self.user_id):
+            future.set_result(self)
+
+        logging.debug(self.__repr__())
 
     def __hash__(self) -> int:
         return hash((self.user_id, self.time, self.self_id, self.raw_message))
@@ -204,9 +204,10 @@ class GroupMessageEvent(MessageEvent):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        logging.info(
-            f"[{self.__class__.__name__}][Group={self.group_id}][Sender={self.sender.nickname}({self.user_id})]: {shorten(self.text, width=79, placeholder='...')}",
-        )
+        if future := self.__class__.futures.get((self.group_id, self.user_id)):
+            future.set_result(self)
+
+        logging.debug(self.__repr__())
 
     def __hash__(self) -> int:
         return hash(

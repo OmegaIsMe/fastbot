@@ -1,9 +1,9 @@
-from dataclasses import dataclass, field
+from dataclasses import KW_ONLY, dataclass, field
 from itertools import chain, groupby
 from operator import attrgetter
-from typing import Any, Dict, Iterable, Iterator, Literal, Self, Union
+from typing import Any, Dict, Iterable, Iterator, Literal, Self, TypeAlias, Union
 
-MessageSegmentData = Dict[str, Any]
+MessageSegmentData: TypeAlias = Dict[str, Any]
 
 
 PREV, NEXT, DATA = 0, 1, 2
@@ -44,7 +44,7 @@ class Link(list):
                 current_node = current_node[NEXT]
         else:
             current_node = self[PREV]
-            for _ in range(self.length - 1 - idx):
+            for _ in range(self.length - idx - 1):
                 current_node = current_node[PREV]
 
         prev_node = current_node[PREV]
@@ -202,14 +202,16 @@ class Link(list):
 
 @dataclass
 class MessageSegment:
+    _: KW_ONLY
+
     type: str
     data: MessageSegmentData = field(default_factory=dict)
 
     def __add__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
-        return Message(self) + other
+        return Message(content=self) + other
 
     def __radd__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
-        return Message(other) + self
+        return Message(content=other) + self
 
     @classmethod
     def text(cls, text: str) -> Self:
@@ -306,16 +308,18 @@ class Message(Link):
             elif isinstance(content, str):
                 self.append(MessageSegment.text(text=content))
             elif isinstance(content, Iterable):
-                self.extend(chain.from_iterable(Message(item) for item in content))
+                self.extend(
+                    chain.from_iterable(Message(content=item) for item in content)
+                )
 
     def __add__(self, other: Union[str, MessageSegment, Iterable]) -> "Message":
-        message = Message(self)
+        message = Message(content=self)
         message += other
 
         return message
 
     def __radd__(self, other: Union[str, MessageSegment, Iterable]) -> "Message":
-        message = Message(other)
+        message = Message(content=other)
         message += self
 
         return message
@@ -328,14 +332,14 @@ class Message(Link):
         elif isinstance(other, str):
             self.append(MessageSegment.text(text=other))
         elif isinstance(other, Iterable):
-            self.extend(chain.from_iterable(Message(item) for item in other))
+            self.extend(chain.from_iterable(Message(content=item) for item in other))
 
         return self
 
     def compact(self, *, concat: str = "") -> "Message":
         return Message(
             MessageSegment.text(
-                concat.join(segment.data["text"] for segment in segments)
+                text=concat.join(segment.data["text"] for segment in segments)
             )
             if key == "text"
             else segments

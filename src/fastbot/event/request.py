@@ -1,7 +1,6 @@
 import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
-from textwrap import shorten
 from typing import Any, Dict, Literal, Self
 
 from fastbot.bot import FastBot
@@ -47,13 +46,7 @@ class FriendRequestEvent(RequestEvent):
     request_type: Literal["friend"] = "friend"
 
     def __post_init__(self) -> None:
-        logging.info(
-            shorten(
-                f"[{self.__class__.__name__}][User={self.user_id}]: {self.comment}",
-                width=79,
-                placeholder="...",
-            )
-        )
+        logging.debug(self.__repr__())
 
     async def approve(self, *, remark: str | None = None) -> Any:
         return await FastBot.do(
@@ -86,13 +79,7 @@ class GroupRequestEvent(RequestEvent):
     request_type: Literal["group"] = "group"
 
     def __post_init__(self) -> None:
-        logging.info(
-            shorten(
-                f"[{self.__class__.__name__}][User={self.user_id}][Group={self.group_id}]: {self.comment}",
-                width=79,
-                placeholder="...",
-            )
-        )
+        logging.debug(self.__repr__())
 
     async def approve(self) -> Any:
         return await FastBot.do(

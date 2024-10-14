@@ -3,9 +3,12 @@ import logging
 import os
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Iterable, Self
+from typing import Any, ClassVar, Dict, Iterable, Self
 
 from fastapi import FastAPI, WebSocket, WebSocketException, status
+
+from fastbot.event import Context
+from fastbot.plugin import PluginManager
 
 try:
     import ujson as json
@@ -19,15 +22,12 @@ except ImportError:
         json.dumps, ensure_ascii=False, separators=(",", ":"), sort_keys=False
     )
 
-if TYPE_CHECKING:
-    from fastbot.event import Context
-
 
 @dataclass
 class FastBot:
     app: ClassVar[FastAPI]
 
-    connector: ClassVar[Dict[int, WebSocket]] = {}
+    connectors: ClassVar[Dict[int, WebSocket]] = {}
     futures: ClassVar[Dict[int, asyncio.Future]] = {}
 
     def __init__(self, app: FastAPI | None = None, *args, **kwargs) -> None:
@@ -69,7 +69,13 @@ class FastBot:
                 reason="Missing `x-self-id` header",
             )
 
-        if int(self_id) in cls.connector:
+        if not (self_id.isdigit() and (self_id := int(self_id))):
+            raise WebSocketException(
+                code=status.WS_1008_POLICY_VIOLATION,
+                reason="Invalid `x-self-id` header",
+            )
+
+        if self_id in cls.connectors:
             raise WebSocketException(
                 code=status.WS_1008_POLICY_VIOLATION,
                 reason="Duplicate `x-self-id` header",
@@ -79,7 +85,7 @@ class FastBot:
 
         logging.info(f"Websocket connected {self_id=}")
 
-        cls.connector[int(self_id)] = websocket
+        cls.connectors[self_id] = websocket
 
         try:
             while True:
@@ -94,12 +100,10 @@ class FastBot:
 
         finally:
             logging.warning(f"Websocket disconnected {self_id=}")
-            del cls.connector[int(self_id)]
+            del cls.connectors[int(self_id)]
 
     @classmethod
     async def event_handler(cls, ctx: "Context") -> None:
-        from fastbot.plugin import PluginManager
-
         try:
             if "post_type" in ctx:
                 await PluginManager.run(ctx=ctx)
@@ -115,16 +119,24 @@ class FastBot:
             logging.exception(e)
 
     @classmethod
-    async def do(cls, *, endpoint: str, self_id: int | str, **kwargs) -> Any:
-        future = asyncio.Future()
-        future_id = id(future)
+    async def do(cls, *, endpoint: str, self_id: int | None = None, **kwargs) -> Any:
+        if not self_id:
+            if len(cls.connectors) == 1:
+                self_id = next(iter(cls.connectors))
+            else:
+                raise RuntimeError(
+                    "More than one connector is connected, `self_id` must be specified"
+                )
 
         logging.debug(f"{endpoint=} {self_id=} {kwargs=}")
+
+        future = asyncio.Future()
+        future_id = id(future)
 
         cls.futures[future_id] = future
 
         try:
-            await cls.connector[int(self_id)].send_bytes(
+            await cls.connectors[self_id].send_bytes(
                 json.dumps(
                     {"action": endpoint, "params": kwargs, "echo": future_id}
                 ).encode(encoding="utf-8")
@@ -146,8 +158,6 @@ class FastBot:
         *args,
         **kwargs,
     ) -> Self:
-        from fastbot.plugin import PluginManager
-
         if isinstance(plugins, str):
             PluginManager.import_from(plugins)
         else:
