@@ -26,6 +26,8 @@ class Plugin:
 
     state: ContextVar = ContextVar("state", default=True)
 
+    init: Callable | None = None
+
     middlewares: List[Middleware] = field(default_factory=list)
     executors: List[Callable[..., Any]] = field(default_factory=list)
 
@@ -40,13 +42,16 @@ class PluginManager:
     @classmethod
     def import_from(cls, path_to_import: str) -> None:
         def load(module_name: str, module_path: str) -> None:
+            cls.plugins[module_name] = plugin = Plugin()
+
             try:
                 spec = spec_from_file_location(module_name, module_path)
                 module = module_from_spec(spec)  # type: ignore
 
-                cls.plugins[module_name] = Plugin()
-
                 spec.loader.exec_module(module)  # type: ignore
+
+                if init := getattr(module, "init", None):
+                    plugin.init = init
 
                 logging.info(f"loaded plugin [{module_name}] from [{module_path}]")
 
@@ -54,10 +59,7 @@ class PluginManager:
                 logging.exception(e)
 
             finally:
-                if not any(
-                    cls.plugins[module_name].middlewares
-                    + cls.plugins[module_name].executors
-                ):
+                if not (plugin.init or plugin.middlewares or plugin.executors):
                     del cls.plugins[module_name]
 
         if (

@@ -92,6 +92,7 @@ class FastBot:
                 match message := await websocket.receive():
                     case {"bytes": data} | {"text": data}:
                         asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
+
                     case _:
                         logging.warning(f"Unknow websocket message received {message=}")
 

@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Dict, List, Literal, Self, Tuple
 
 from fastbot.bot import FastBot
 from fastbot.event import Context, Event
-from fastbot.message import Message, MessageSegment
+from fastbot.message import Message, MessageSegment, MessageSegmentData
 
 
 @dataclass
@@ -63,7 +63,7 @@ class PrivateMessageEvent(MessageEvent):
         sub_type: Literal["friend", "group", "other"],
         message_id: int,
         user_id: int,
-        message: List[Dict[str, Any]],
+        message: List[MessageSegmentData],
         raw_message: str,
         font: int,
         sender: Dict,
@@ -97,7 +97,7 @@ class PrivateMessageEvent(MessageEvent):
     async def send(self, message: str | Message | MessageSegment) -> Any:
         return await FastBot.do(
             endpoint="send_private_msg ",
-            message=[asdict(msg) for msg in Message(message).compact()],
+            message=[asdict(msg) for msg in Message(message)],
             self_id=self.self_id,
             user_id=self.user_id,
         )
@@ -178,7 +178,7 @@ class GroupMessageEvent(MessageEvent):
         message_id: int,
         group_id: int,
         user_id: int,
-        message: List[Dict],
+        message: List[MessageSegmentData],
         raw_message: str,
         font: int,
         sender: Dict,
@@ -217,7 +217,7 @@ class GroupMessageEvent(MessageEvent):
     async def send(self, message: str | MessageSegment | Message) -> Any:
         return await FastBot.do(
             endpoint="send_group_msg",
-            message=[asdict(msg) for msg in Message(message).compact()],
+            message=[asdict(msg) for msg in Message(message)],
             self_id=self.self_id,
             group_id=self.group_id,
         )

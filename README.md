@@ -34,12 +34,21 @@ from typing import AsyncGenerator
 
 from fastapi import FastAPI
 from fastbot.bot import FastBot
+from fastbot.plugin import PluginManager
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # Register a websocket adapter to `FastAPI`
     app.add_api_websocket_route("/onebot/v11/ws", FastBot.ws_adapter)
+
+    await asyncio.gather(
+        *(
+            init() if asyncio.iscoroutinefunction(init) else asyncio.to_thread(init)
+            for plugin in PluginManager.plugins.values()
+            if (init := plugin.init)
+        ),
+    )
 
     yield
 
@@ -74,6 +83,11 @@ class IsInGroupBlacklist(Matcher):
 
     def __call__(self, event: GroupMessageEvent) -> bool:
         return event.group_id in self.blacklist
+
+
+async def init() -> None:
+    # do some initial work here
+    ...
 
 
 # All middlewares will be executed in sequence.

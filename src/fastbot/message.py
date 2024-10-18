@@ -1,9 +1,13 @@
-from dataclasses import KW_ONLY, dataclass, field
+from base64 import b64encode
+from dataclasses import KW_ONLY, dataclass
 from itertools import chain, groupby
 from operator import attrgetter
-from typing import Any, Dict, Iterable, Iterator, Literal, Self, TypeAlias, Union
+from typing import Any, Dict, Iterable, Iterator, Literal, Self, TypedDict, Union
 
-MessageSegmentData: TypeAlias = Dict[str, Any]
+
+class MessageSegmentData(TypedDict):
+    type: str
+    data: Dict[str, Any]
 
 
 PREV, NEXT, DATA = 0, 1, 2
@@ -205,7 +209,7 @@ class MessageSegment:
     _: KW_ONLY
 
     type: str
-    data: MessageSegmentData = field(default_factory=dict)
+    data: Dict[str, Any]
 
     def __add__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
         return Message(content=self) + other
@@ -224,7 +228,7 @@ class MessageSegment:
     @classmethod
     def image(
         cls,
-        file: str,
+        file: bytes | str,
         type: Literal["flash"] | None = None,
         url: str | None = None,
         cache: bool | None = None,
@@ -234,7 +238,11 @@ class MessageSegment:
         return cls(
             type="image",
             data={
-                "file": file,
+                "file": (
+                    file
+                    if isinstance(file, str)
+                    else f"base64://{b64encode(file).decode(encoding='utf-8')}"
+                ),
                 "type": type,
                 "url": url,
                 "cache": cache,
