@@ -2,27 +2,27 @@ import asyncio
 import logging
 from dataclasses import KW_ONLY, asdict, dataclass
 from functools import cache, cached_property
-from typing import Any, ClassVar, Dict, List, Literal, Self, Tuple
+from typing import Any, ClassVar, Dict, Literal, Self, Tuple, Type
 
 from fastbot.bot import FastBot
-from fastbot.event import Context, Event
-from fastbot.message import Message, MessageSegment, MessageSegmentData
+from fastbot.event import Context, Event, MetaClass
+from fastbot.message import Message, MessageSegment
 
 
 @dataclass
 class MessageEvent(Event):
     _: KW_ONLY
 
-    message_type: str
+    message_type: Literal["group", "private"]
     post_type: Literal["message"] = "message"
 
     @classmethod
     @cache
-    def subcalsses(cls) -> Dict[str, Any]:
+    def subcalsses(cls) -> Dict[str, Type["MessageEvent"]]:
         return {subclass.message_type: subclass for subclass in cls.__subclasses__()}
 
     @classmethod
-    def build_from(cls, *, ctx: Context) -> Self:
+    def build_from(cls, *, ctx: Context) -> "MessageEvent":
         if subclass := cls.subcalsses().get(ctx["message_type"]):
             return subclass(ctx=ctx, **ctx)
 
@@ -37,54 +37,35 @@ class MessageEvent(Event):
 
 @dataclass
 class PrivateMessageEvent(MessageEvent):
+    @dataclass
+    class Sender(metaclass=MetaClass):
+        user_id: int
+        nickname: str
+        sex: str
+        age: int
+
+        def __init__(self, **kwargs) -> None:
+            pass
+
+    _: KW_ONLY
+
+    sub_type: Literal["friend", "group", "other"]
+    message_id: int
+    user_id: int
+    message: Message
+    raw_message: str
+    font: int
+    sender: Sender
+
     futures: ClassVar[Dict[int, asyncio.Future]] = {}
 
-    post_type: ClassVar[Literal["message"]] = "message"
     message_type: ClassVar[Literal["private"]] = "private"
 
-    class Sender:
-        def __init__(
-            self, user_id: int, nickname: str, sex: str, age: int, **kwargs
-        ) -> None:
-            self.user_id = user_id
-            self.nickname = nickname
-            self.sex = sex
-            self.age = age
-
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    def __init__(
-        self,
-        *,
-        ctx: Context,
-        time: int,
-        self_id: int,
-        sub_type: Literal["friend", "group", "other"],
-        message_id: int,
-        user_id: int,
-        message: List[MessageSegmentData],
-        raw_message: str,
-        font: int,
-        sender: Dict,
-        **kwargs,
-    ) -> None:
-        self.ctx = ctx
-
-        self.time = time
-        self.self_id = self_id
-        self.sub_type = sub_type
-        self.message_id = message_id
-        self.user_id = user_id
+    def __init__(self, **kwargs) -> None:
         self.message = Message(
-            MessageSegment(type=msg["type"], data=msg["data"]) for msg in message
+            MessageSegment(type=msg["type"], data=msg["data"]) for msg in self.message
         )
-        self.raw_message = raw_message
-        self.font = font
-        self.sender = self.Sender(**sender)
-
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        self.sender = self.Sender(**self.ctx["sender"])
 
         if future := self.__class__.futures.get(self.user_id):
             future.set_result(self)
@@ -122,87 +103,53 @@ class PrivateMessageEvent(MessageEvent):
 
 @dataclass
 class GroupMessageEvent(MessageEvent):
+    @dataclass
+    class Anonymous(metaclass=MetaClass):
+        id: int | None = None
+        name: str | None = None
+        flag: str | None = None
+
+        def __init__(self, **kwargs) -> None:
+            pass
+
+    @dataclass
+    class Sender(metaclass=MetaClass):
+        user_id: int | None = None
+        nickname: str | None = None
+        card: str | None = None
+        sex: str | None = None
+        age: int | None = None
+        area: str | None = None
+        level: str | None = None
+        role: str | None = None
+        title: str | None = None
+
+        def __init__(self, **kwargs) -> None:
+            pass
+
+    _: KW_ONLY
+
+    sub_type: Literal["normal", "anonymous", "notice"]
+    message_id: int
+    group_id: int
+    user_id: int
+    message: Message
+    raw_message: str
+    font: int
+    sender: Sender
+    anonymous: Anonymous
+
     futures: ClassVar[Dict[Tuple[int, int], asyncio.Future]] = {}
 
-    post_type: ClassVar[Literal["message"]] = "message"
     message_type: ClassVar[Literal["group"]] = "group"
 
-    class Anonymous:
-        def __init__(
-            self,
-            id: int | None = None,
-            name: str | None = None,
-            flag: str | None = None,
-            **kwargs,
-        ) -> None:
-            self.id = id
-            self.name = name
-            self.flag = flag
-
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    class Sender:
-        def __init__(
-            self,
-            user_id: int | None = None,
-            nickname: str | None = None,
-            card: str | None = None,
-            sex: str | None = None,
-            age: int | None = None,
-            area: str | None = None,
-            level: str | None = None,
-            role: str | None = None,
-            title: str | None = None,
-            **kwargs,
-        ) -> None:
-            self.user_id = user_id
-            self.nickname = nickname
-            self.card = card
-            self.sex = sex
-            self.age = age
-            self.area = area
-            self.level = level
-            self.role = role
-            self.title = title
-
-            for k, v in kwargs.items():
-                setattr(self, k, v)
-
-    def __init__(
-        self,
-        ctx: Context,
-        time: int,
-        self_id: int,
-        sub_type: Literal["normal", "anonymous", "notice"],
-        message_id: int,
-        group_id: int,
-        user_id: int,
-        message: List[MessageSegmentData],
-        raw_message: str,
-        font: int,
-        sender: Dict,
-        anonymous: Dict = {},
-        **kwargs,
-    ) -> None:
-        self.ctx = ctx
-
-        self.time = time
-        self.self_id = self_id
-        self.sub_type = sub_type
-        self.message_id = message_id
-        self.group_id = group_id
-        self.user_id = user_id
+    def __init__(self, **kwargs) -> None:
         self.message = Message(
-            MessageSegment(type=msg["type"], data=msg["data"]) for msg in message
+            MessageSegment(type=msg["type"], data=msg["data"]) for msg in self.message
         )
-        self.raw_message = raw_message
-        self.font = font
-        self.sender = self.Sender(**sender)
-        self.anonymous = self.Anonymous(**anonymous)
 
-        for k, v in kwargs.items():
-            setattr(self, k, v)
+        self.sender = self.Sender(**self.ctx.get("sender", {}))
+        self.anonymous = self.Anonymous(**self.ctx.get("anonymous", {}))
 
         if future := self.__class__.futures.get((self.group_id, self.user_id)):
             future.set_result(self)

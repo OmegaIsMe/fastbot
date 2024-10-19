@@ -1,26 +1,25 @@
+import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
-import logging
-from types import SimpleNamespace
-from typing import Any, Dict, Literal, Self
+from typing import Dict, Literal, Type
 
-from fastbot.event import Context, Event
+from fastbot.event import Context, Event, MetaClass
 
 
 @dataclass
 class MetaEvent(Event):
     _: KW_ONLY
 
-    meta_event_type: str
+    meta_event_type: Literal["heartbeat", "lifecycle"]
     post_type: Literal["meta_event"] = "meta_event"
 
     @classmethod
     @cache
-    def subcalsses(cls) -> Dict[str, Any]:
+    def subcalsses(cls) -> Dict[str, Type["MetaEvent"]]:
         return {subclass.meta_event_type: subclass for subclass in cls.__subclasses__()}
 
     @classmethod
-    def build_from(cls, *, ctx: Context) -> Self:
+    def build_from(cls, *, ctx: Context) -> "MetaEvent":
         if subclass := cls.subcalsses().get(ctx["meta_event_type"]):
             return subclass(ctx=ctx, **ctx)
 
@@ -40,7 +39,6 @@ class LifecycleMetaEvent(MetaEvent):
     self_id: int
     sub_type: Literal["enable", "disable", "connect"]
 
-    post_type: Literal["meta_event"] = "meta_event"
     meta_event_type: Literal["lifecycle"] = "lifecycle"
 
     def __post_init__(self) -> None:
@@ -49,17 +47,20 @@ class LifecycleMetaEvent(MetaEvent):
 
 @dataclass
 class HeartbeatMetaEvent(MetaEvent):
+    @dataclass
+    class Status(metaclass=MetaClass):
+        pass
+
     _: KW_ONLY
 
     time: int
     self_id: int
-    status: SimpleNamespace
+    status: Status
     interval: int
 
-    post_type: Literal["meta_event"] = "meta_event"
     meta_event_type: Literal["heartbeat"] = "heartbeat"
 
     def __post_init__(self):
-        self.status = SimpleNamespace(**self.ctx["status"])
+        self.status = self.Status(**self.ctx["status"])
 
         logging.debug(self.__repr__())

@@ -1,9 +1,9 @@
 import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
-from typing import Any, Dict, Literal, Self
+from typing import Dict, Literal, Type
 
-from fastbot.event import Context, Event
+from fastbot.event import Context, Event, MetaClass
 
 
 @dataclass
@@ -15,11 +15,11 @@ class NoticeEvent(Event):
 
     @classmethod
     @cache
-    def subcalsses(cls) -> Dict[str, Any]:
+    def subcalsses(cls) -> Dict[str, Type["NoticeEvent"]]:
         return {subclass.notice_type: subclass for subclass in cls.__subclasses__()}
 
     @classmethod
-    def build_from(cls, *, ctx: Context) -> Self:
+    def build_from(cls, *, ctx: Context) -> "NoticeEvent":
         if subclass := cls.subcalsses().get(ctx["notice_type"]):
             return subclass(ctx=ctx, **ctx)
 
@@ -34,13 +34,16 @@ class NoticeEvent(Event):
 @dataclass
 class GroupFileUploadNoticeEvent(NoticeEvent):
     @dataclass
-    class File:
+    class File(metaclass=MetaClass):
         _: KW_ONLY
 
         id: str
         name: str
         size: int
         busid: int
+
+        def __init__(self, **kwargs) -> None:
+            pass
 
     _: KW_ONLY
 
@@ -50,11 +53,10 @@ class GroupFileUploadNoticeEvent(NoticeEvent):
     user_id: int
     file: File
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_upload"] = "group_upload"
 
-    def __post_init__(self) -> None:
-        self.file = self.__class__.File(**(self.ctx["file"] or {}))
+    def __init__(self, **kwargs) -> None:
+        self.file = self.File(**self.ctx.get("file", {}))
 
         logging.debug(self.__repr__())
 
@@ -69,10 +71,9 @@ class GroupAdminChangeNoticeEvent(NoticeEvent):
     group_id: int
     user_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_admin"] = "group_admin"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -87,10 +88,9 @@ class GroupMemberDecreaseNoticeEvent(NoticeEvent):
     user_id: int
     operator_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_decrease"] = "group_decrease"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -105,10 +105,9 @@ class GroupMemberIncreaseNoticeEvent(NoticeEvent):
     operator_id: int
     user_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_increase"] = "group_increase"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -124,10 +123,9 @@ class GroupBanNoticeEvent(NoticeEvent):
     user_id: int
     duration: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_ban"] = "group_ban"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -139,10 +137,9 @@ class FriendAddNoticeEvent(NoticeEvent):
     self_id: int
     user_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["friend_add"] = "friend_add"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -157,10 +154,9 @@ class GroupMessageRecallNoticeEvent(NoticeEvent):
     operator_id: int
     message_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["group_recall"] = "group_recall"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -173,8 +169,7 @@ class FriendMessageRecallNoticeEvent(NoticeEvent):
     user_id: int
     message_id: int
 
-    post_type: Literal["notice"] = "notice"
     notice_type: Literal["friend_recall"] = "friend_recall"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())

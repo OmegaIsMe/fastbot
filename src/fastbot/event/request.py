@@ -1,7 +1,7 @@
 import logging
 from dataclasses import KW_ONLY, dataclass
 from functools import cache
-from typing import Any, Dict, Literal, Self
+from typing import Any, Dict, Literal, Type
 
 from fastbot.bot import FastBot
 from fastbot.event import Context, Event
@@ -11,16 +11,16 @@ from fastbot.event import Context, Event
 class RequestEvent(Event):
     _: KW_ONLY
 
-    request_type: str
+    request_type: Literal["friend", "group"]
     post_type: Literal["request"] = "request"
 
     @classmethod
     @cache
-    def subcalsses(cls) -> Dict[str, Any]:
+    def subcalsses(cls) -> Dict[str, Type["RequestEvent"]]:
         return {subclass.request_type: subclass for subclass in cls.__subclasses__()}
 
     @classmethod
-    def build_from(cls, *, ctx: Context) -> Self:
+    def build_from(cls, *, ctx: Context) -> "RequestEvent":
         if subclass := cls.subcalsses().get(ctx["request_type"]):
             return subclass(ctx=ctx, **ctx)
 
@@ -42,10 +42,9 @@ class FriendRequestEvent(RequestEvent):
     comment: str
     flag: str
 
-    post_type: Literal["request"] = "request"
     request_type: Literal["friend"] = "friend"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
     async def approve(self, *, remark: str | None = None) -> Any:
@@ -75,10 +74,9 @@ class GroupRequestEvent(RequestEvent):
     comment: str
     flag: str
 
-    post_type: Literal["request"] = "request"
     request_type: Literal["group"] = "group"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
     async def approve(self) -> Any:
