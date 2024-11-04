@@ -4,9 +4,10 @@ from typing import Callable, List
 
 @dataclass
 class Matcher:
+    rule: Callable[..., bool] = lambda: True
+
     _: KW_ONLY
 
-    rule: Callable[..., bool] = lambda: True
     matchers: List["Matcher"] = field(default_factory=list)
     operator: str | None = None
 

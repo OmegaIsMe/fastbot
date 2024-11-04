@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "fastbot"
-version = "1.0.0"
+version = "2024.11.04"
 dependencies = ["fastapi", "uvicorn", "websockets"]
 requires-python = ">=3"
 authors = [{name = "Oi", email = "oi@example.com"}]

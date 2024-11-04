@@ -41,7 +41,7 @@ class LifecycleMetaEvent(MetaEvent):
 
     meta_event_type: Literal["lifecycle"] = "lifecycle"
 
-    def __post_init__(self) -> None:
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
 
 
@@ -60,7 +60,7 @@ class HeartbeatMetaEvent(MetaEvent):
 
     meta_event_type: Literal["heartbeat"] = "heartbeat"
 
-    def __post_init__(self):
-        self.status = self.Status(**self.ctx["status"])
-
+    def __init__(self, **kwargs) -> None:
         logging.debug(self.__repr__())
+
+        self.status = self.Status(**self.ctx["status"])

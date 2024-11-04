@@ -123,60 +123,36 @@ def middleware(*, priority: int = 0) -> Callable[..., Any]:
 
 
 def on(matcher: Matcher | Callable[[Event], bool] | None = None):
-    if matcher:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        event_type = ()
 
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            event_type = tuple()
-
-            for param in func.__annotations__.values():
-                if get_origin(param) in (Union, UnionType):
-                    for arg in get_args(param):
-                        with suppress(TypeError):
-                            if issubclass(arg, Event):
-                                event_type += (arg,)
-
-                else:
+        for param in func.__annotations__.values():
+            if get_origin(param) in (Union, UnionType):
+                for arg in get_args(param):
                     with suppress(TypeError):
-                        if issubclass(param, Event):
-                            event_type += (param,)
+                        if issubclass(arg, Event):
+                            event_type += (arg,)
+
+            else:
+                with suppress(TypeError):
+                    if issubclass(param, Event):
+                        event_type += (param,)
+
+        if matcher:
 
             @wraps(func)
             async def wrapper(event: Event) -> Callable[[Event], Any] | None:
-                if not (isinstance(event, event_type) and matcher(event)):
-                    return
-
-                return await func(event)
-
-            PluginManager.plugins[func.__module__].executors.append(wrapper)
-
-            return wrapper
-
-    else:
-
-        def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
-            event_type = tuple()
-
-            for param in func.__annotations__.values():
-                if get_origin(param) in (Union, UnionType):
-                    for arg in get_args(param):
-                        with suppress(TypeError):
-                            if issubclass(arg, Event):
-                                event_type += (arg,)
-
-                else:
-                    with suppress(TypeError):
-                        if issubclass(param, Event):
-                            event_type += (param,)
+                if isinstance(event, event_type) and matcher(event):
+                    return await func(event)
+        else:
 
             @wraps(func)
             async def wrapper(event: Event) -> Callable[[Event], Any] | None:
-                if not isinstance(event, event_type):
-                    return
+                if isinstance(event, event_type):
+                    return await func(event)
 
-                return await func(event)
+        PluginManager.plugins[func.__module__].executors.append(wrapper)
 
-            PluginManager.plugins[func.__module__].executors.append(wrapper)
-
-            return wrapper
+        return wrapper
 
     return decorator

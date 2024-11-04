@@ -2,7 +2,7 @@ import asyncio
 import logging
 from dataclasses import KW_ONLY, asdict, dataclass
 from functools import cache, cached_property
-from typing import Any, ClassVar, Dict, Literal, Self, Tuple, Type
+from typing import Any, ClassVar, Dict, Iterable, Literal, Self, Tuple, Type
 
 from fastbot.bot import FastBot
 from fastbot.event import Context, Event, MetaClass
@@ -62,6 +62,8 @@ class PrivateMessageEvent(MessageEvent):
     message_type: ClassVar[Literal["private"]] = "private"
 
     def __init__(self, **kwargs) -> None:
+        logging.debug(self.__repr__())
+
         self.message = Message(
             MessageSegment(type=msg["type"], data=msg["data"]) for msg in self.message
         )
@@ -70,12 +72,16 @@ class PrivateMessageEvent(MessageEvent):
         if future := self.__class__.futures.get(self.user_id):
             future.set_result(self)
 
-        logging.debug(self.__repr__())
-
     def __hash__(self) -> int:
         return hash((self.user_id, self.time, self.self_id, self.raw_message))
 
-    async def send(self, message: str | Message | MessageSegment) -> Any:
+    async def send(
+        self,
+        message: str
+        | Message
+        | MessageSegment
+        | Iterable[str | MessageSegment | Message],
+    ) -> Any:
         return await FastBot.do(
             endpoint="send_private_msg ",
             message=[asdict(msg) for msg in Message(message)],
@@ -83,7 +89,13 @@ class PrivateMessageEvent(MessageEvent):
             user_id=self.user_id,
         )
 
-    async def defer(self, message: str | Message | MessageSegment) -> Self:
+    async def defer(
+        self,
+        message: str
+        | Message
+        | MessageSegment
+        | Iterable[str | MessageSegment | Message],
+    ) -> Self:
         future = asyncio.Future()
         self.__class__.futures[self.user_id] = future
 
@@ -103,15 +115,6 @@ class PrivateMessageEvent(MessageEvent):
 
 @dataclass
 class GroupMessageEvent(MessageEvent):
-    @dataclass
-    class Anonymous(metaclass=MetaClass):
-        id: int | None = None
-        name: str | None = None
-        flag: str | None = None
-
-        def __init__(self, **kwargs) -> None:
-            pass
-
     @dataclass
     class Sender(metaclass=MetaClass):
         user_id: int | None = None
@@ -137,31 +140,35 @@ class GroupMessageEvent(MessageEvent):
     raw_message: str
     font: int
     sender: Sender
-    anonymous: Anonymous
 
     futures: ClassVar[Dict[Tuple[int, int], asyncio.Future]] = {}
 
     message_type: ClassVar[Literal["group"]] = "group"
 
     def __init__(self, **kwargs) -> None:
+        logging.debug(self.__repr__())
+
         self.message = Message(
             MessageSegment(type=msg["type"], data=msg["data"]) for msg in self.message
         )
 
         self.sender = self.Sender(**self.ctx.get("sender", {}))
-        self.anonymous = self.Anonymous(**self.ctx.get("anonymous", {}))
 
         if future := self.__class__.futures.get((self.group_id, self.user_id)):
             future.set_result(self)
-
-        logging.debug(self.__repr__())
 
     def __hash__(self) -> int:
         return hash(
             (self.group_id, self.user_id, self.self_id, self.time, self.raw_message)
         )
 
-    async def send(self, message: str | MessageSegment | Message) -> Any:
+    async def send(
+        self,
+        message: str
+        | MessageSegment
+        | Message
+        | Iterable[str | MessageSegment | Message],
+    ) -> Any:
         return await FastBot.do(
             endpoint="send_group_msg",
             message=[asdict(msg) for msg in Message(message)],
@@ -169,7 +176,13 @@ class GroupMessageEvent(MessageEvent):
             group_id=self.group_id,
         )
 
-    async def defer(self, message: str | Message | MessageSegment) -> Self:
+    async def defer(
+        self,
+        message: str
+        | Message
+        | MessageSegment
+        | Iterable[str | MessageSegment | Message],
+    ) -> Self:
         future = asyncio.Future()
         self.__class__.futures[(self.group_id, self.user_id)] = future
 

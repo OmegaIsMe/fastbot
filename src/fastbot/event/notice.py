@@ -56,9 +56,9 @@ class GroupFileUploadNoticeEvent(NoticeEvent):
     notice_type: Literal["group_upload"] = "group_upload"
 
     def __init__(self, **kwargs) -> None:
-        self.file = self.File(**self.ctx.get("file", {}))
-
         logging.debug(self.__repr__())
+
+        self.file = self.File(**self.ctx.get("file", {}))
 
 
 @dataclass
