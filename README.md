@@ -86,19 +86,19 @@ class IsInGroupBlacklist(Matcher):
 
 
 async def init() -> None:
-    # do some initial work here
+    # Do some initial work here
     ...
 
 
-# All middlewares will be executed in sequence.
+# All middlewares will be executed in sequence
 @middleware(priority=0)
 async def preprocessing(ctx: Context):
     if (group_id := ctx.get("group_id")) == ...:
-        # In event processing, temporarily close the plugin
+        # Temporarily disable the plugin
         PluginManager.plugins["plugins.plugin_example"].state.set(False)
     elif group_id is None:
-        # When the `Context` is empty, the middleware will discard
-        # and terminate event construction and processing.
+        # When the `Context` is clear, the middleware will discard
+        # the event and terminate processing
         ctx.clear()
 
 
