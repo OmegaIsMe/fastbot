@@ -30,8 +30,8 @@ class FastBot:
     connectors: ClassVar[Dict[int, WebSocket]] = {}
     futures: ClassVar[Dict[int, asyncio.Future]] = {}
 
-    def __init__(self, app: FastAPI | None = None, *args, **kwargs) -> None:
-        self.__class__.app = app or FastAPI(*args, **kwargs)
+    def __init__(self, app: FastAPI | None = None, **kwargs) -> None:
+        self.__class__.app = app or FastAPI(**kwargs)
 
     @classmethod
     async def ws_adapter(cls, websocket: WebSocket) -> None:
@@ -91,7 +91,11 @@ class FastBot:
             while True:
                 match message := await websocket.receive():
                     case {"bytes": data} | {"text": data}:
-                        _ = asyncio.create_task(cls.event_handler(ctx=json.loads(data)))
+                        _ = asyncio.Task(
+                            cls.event_handler(ctx=json.loads(data)),
+                            loop=asyncio.get_running_loop(),
+                            eager_start=True,
+                        )
 
                     case _:
                         logging.warning(f"Unknow websocket message received {message=}")
@@ -104,7 +108,7 @@ class FastBot:
             del cls.connectors[int(self_id)]
 
     @classmethod
-    async def event_handler(cls, ctx: "Context") -> None:
+    async def event_handler(cls, ctx: Context) -> None:
         try:
             if "post_type" in ctx:
                 await PluginManager.run(ctx=ctx)
@@ -112,7 +116,7 @@ class FastBot:
             else:
                 (
                     cls.futures[ctx["echo"]].set_result(ctx.get("data"))
-                    if ctx["status"] != "fail"
+                    if ctx["status"] == "ok"
                     else cls.futures[ctx["echo"]].set_exception(RuntimeError(ctx))
                 )
 
@@ -124,6 +128,7 @@ class FastBot:
         if not self_id:
             if len(cls.connectors) == 1:
                 self_id = next(iter(cls.connectors))
+
             else:
                 raise RuntimeError(
                     "More than one connector is connected, `self_id` must be specified"
@@ -155,20 +160,20 @@ class FastBot:
     def build(
         cls,
         app: FastAPI | None = None,
-        plugins: str | Iterable[str] = "plugins",
-        *args,
+        plugins: str | Iterable[str] | None = None,
         **kwargs,
     ) -> Self:
         if isinstance(plugins, str):
             PluginManager.import_from(plugins)
-        else:
+
+        elif isinstance(plugins, Iterable):
             for plugin in plugins:
                 PluginManager.import_from(plugin)
 
-        return cls(app=app, *args, **kwargs)
+        return cls(app=app, **kwargs)
 
     @classmethod
-    def run(cls, *args, **kwargs) -> None:
+    def run(cls, **kwargs) -> None:
         import uvicorn
 
-        uvicorn.run(cls.app, *args, **kwargs)
+        uvicorn.run(app=cls.app, **kwargs)

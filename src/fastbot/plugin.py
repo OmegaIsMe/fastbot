@@ -41,7 +41,7 @@ class PluginManager:
 
     @classmethod
     def import_from(cls, path_to_import: str) -> None:
-        def load(module_name: str, module_path: str) -> None:
+        def load(module_name: str, module_path: Path) -> None:
             cls.plugins[module_name] = plugin = Plugin()
 
             try:
@@ -62,39 +62,40 @@ class PluginManager:
                 if not (plugin.init or plugin.middlewares or plugin.executors):
                     del cls.plugins[module_name]
 
-        if (
-            (path := Path(path_to_import)).is_file()
-            and path.name.endswith(".py")
-            and not path.name.startswith("_")
-        ):
-            load(".".join(path.parts).removesuffix(".py"), str(path))
-
-        elif path.is_dir():
+        if (path := Path(path_to_import)).is_dir():
             for file in path.rglob("*.py"):
                 if file.is_file() and not file.name.startswith("_"):
                     load(
                         ".".join(file.relative_to(path.parent).parts).removesuffix(
                             ".py"
                         ),
-                        str(file),
+                        file,
                     )
+
+        elif (
+            path.is_file()
+            and path.name.endswith(".py")
+            and not path.name.startswith("_")
+        ):
+            load(".".join(path.parts).removesuffix(".py"), path)
 
     @classmethod
     @cache
-    def middlewares(cls) -> List[Plugin.Middleware]:
-        return sorted(
-            middleware
-            for plugin in cls.plugins.values()
-            for middleware in plugin.middlewares
-        )
+    def middlewares(cls) -> List[Callable[[Context], Any]]:
+        return [
+            func.executor
+            for func in sorted(
+                middleware
+                for plugin in cls.plugins.values()
+                for middleware in plugin.middlewares
+            )
+        ]
 
     @classmethod
     async def run(cls, *, ctx: Context) -> None:
         for middleware in cls.middlewares():
-            await (
-                func(ctx)
-                if asyncio.iscoroutinefunction(func := middleware.executor)
-                else asyncio.to_thread(func, ctx)
+            _ = asyncio.Task(
+                middleware(ctx), loop=asyncio.get_running_loop(), eager_start=True
             )
 
             if not ctx:
@@ -104,26 +105,28 @@ class PluginManager:
 
         await asyncio.gather(
             *(
-                plugin.run(event)
+                plugin.run(event=event)
                 for plugin in cls.plugins.values()
                 if plugin.state.get()
             )
         )
 
 
-def middleware(*, priority: int = 0) -> Callable[..., Any]:
-    def wrapper(func: Callable[..., Any]) -> Callable[..., Any]:
+def middleware(*, priority: int = 0) -> Callable[[Callable[[Context], Any]], Any]:
+    def decorator(func: Callable[[Context], Any]) -> Callable[[Context], Any]:
         PluginManager.plugins[func.__module__].middlewares.append(
             Plugin.Middleware(priority=priority, executor=func)
         )
 
         return func
 
-    return wrapper
+    return decorator
 
 
-def on(matcher: Matcher | Callable[[Event], bool] | None = None):
-    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+def on(
+    matcher: Matcher | Callable[[Event], bool] | None = None,
+) -> Callable[[Callable[[Event], Any]], Any]:
+    def decorator(func: Callable[[Event], Any]) -> Callable[[Event], Any]:
         event_type = ()
 
         for param in func.__annotations__.values():

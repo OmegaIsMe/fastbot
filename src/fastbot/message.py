@@ -15,7 +15,7 @@ PREV, NEXT, DATA = 0, 1, 2
 
 class Link(list):
     def __init__(
-        self, iterable: Iterable | None = None, maxlen: int | None = None
+        self, iterable: Iterable[Any] | None = None, maxlen: int | None = None
     ) -> None:
         self[:] = [self, self, None]
 
@@ -211,10 +211,10 @@ class MessageSegment:
     type: str
     data: Dict[str, Any]
 
-    def __add__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
+    def __add__(self, other: Union[str, Iterable[Any], "MessageSegment"]) -> "Message":
         return Message(content=self) + other
 
-    def __radd__(self, other: Union[str, "MessageSegment", Iterable]) -> "Message":
+    def __radd__(self, other: Union[str, Iterable[Any], "MessageSegment"]) -> "Message":
         return Message(content=other) + self
 
     @classmethod
@@ -307,7 +307,9 @@ class MessageSegment:
 
 
 class Message(Link):
-    def __init__(self, content: str | MessageSegment | Iterable | None = None) -> None:
+    def __init__(
+        self, content: str | Iterable[Any] | MessageSegment | None = None
+    ) -> None:
         super().__init__()
 
         if content:
@@ -320,19 +322,19 @@ class Message(Link):
                     chain.from_iterable(Message(content=item) for item in content)
                 )
 
-    def __add__(self, other: Union[str, MessageSegment, Iterable]) -> "Message":
+    def __add__(self, other: Union[str, Iterable[Any], MessageSegment]) -> "Message":
         message = Message(content=self)
         message += other
 
         return message
 
-    def __radd__(self, other: Union[str, MessageSegment, Iterable]) -> "Message":
+    def __radd__(self, other: Union[str, Iterable[Any], MessageSegment]) -> "Message":
         message = Message(content=other)
         message += self
 
         return message
 
-    def __iadd__(self, other: Union[str, MessageSegment, Iterable]) -> "Message":
+    def __iadd__(self, other: Union[str, Iterable[Any], MessageSegment]) -> "Message":
         if isinstance(other, Message):
             self.extend(other)
         elif isinstance(other, MessageSegment):

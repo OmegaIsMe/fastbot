@@ -69,18 +69,22 @@ class PrivateMessageEvent(MessageEvent):
         )
         self.sender = self.Sender(**self.ctx["sender"])
 
+        self.hash_value = hash(
+            (self.user_id, self.time, self.self_id, self.raw_message)
+        )
+
         if future := self.__class__.futures.get(self.user_id):
             future.set_result(self)
 
     def __hash__(self) -> int:
-        return hash((self.user_id, self.time, self.self_id, self.raw_message))
+        return self.hash_value
 
     async def send(
         self,
         message: str
         | Message
         | MessageSegment
-        | Iterable[str | MessageSegment | Message],
+        | Iterable[str | Message | MessageSegment],
     ) -> Any:
         return await FastBot.do(
             endpoint="send_private_msg ",
@@ -94,7 +98,7 @@ class PrivateMessageEvent(MessageEvent):
         message: str
         | Message
         | MessageSegment
-        | Iterable[str | MessageSegment | Message],
+        | Iterable[str | Message | MessageSegment],
     ) -> Self:
         future = asyncio.Future()
         self.__class__.futures[self.user_id] = future
@@ -151,23 +155,24 @@ class GroupMessageEvent(MessageEvent):
         self.message = Message(
             MessageSegment(type=msg["type"], data=msg["data"]) for msg in self.message
         )
-
         self.sender = self.Sender(**self.ctx.get("sender", {}))
+
+        self.hash_value = hash(
+            (self.user_id, self.time, self.self_id, self.raw_message)
+        )
 
         if future := self.__class__.futures.get((self.group_id, self.user_id)):
             future.set_result(self)
 
     def __hash__(self) -> int:
-        return hash(
-            (self.group_id, self.user_id, self.self_id, self.time, self.raw_message)
-        )
+        return self.hash_value
 
     async def send(
         self,
         message: str
-        | MessageSegment
         | Message
-        | Iterable[str | MessageSegment | Message],
+        | MessageSegment
+        | Iterable[str | Message | MessageSegment],
     ) -> Any:
         return await FastBot.do(
             endpoint="send_group_msg",
@@ -181,7 +186,7 @@ class GroupMessageEvent(MessageEvent):
         message: str
         | Message
         | MessageSegment
-        | Iterable[str | MessageSegment | Message],
+        | Iterable[str | Message | MessageSegment],
     ) -> Self:
         future = asyncio.Future()
         self.__class__.futures[(self.group_id, self.user_id)] = future
