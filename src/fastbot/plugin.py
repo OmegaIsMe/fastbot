@@ -112,8 +112,8 @@ class PluginManager:
         )
 
 
-def middleware(*, priority: int = 0) -> Callable[[Callable[[Context], Any]], Any]:
-    def decorator(func: Callable[[Context], Any]) -> Callable[[Context], Any]:
+def middleware(*, priority: int = 0) -> Callable[..., Any]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         PluginManager.plugins[func.__module__].middlewares.append(
             Plugin.Middleware(priority=priority, executor=func)
         )
@@ -123,10 +123,8 @@ def middleware(*, priority: int = 0) -> Callable[[Callable[[Context], Any]], Any
     return decorator
 
 
-def on(
-    matcher: Matcher | Callable[[Event], bool] | None = None,
-) -> Callable[[Callable[[Event], Any]], Any]:
-    def decorator(func: Callable[[Event], Any]) -> Callable[[Event], Any]:
+def on(matcher: Matcher | Callable[..., bool] | None = None) -> Callable[..., Any]:
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
         event_type = ()
 
         for param in func.__annotations__.values():
@@ -144,13 +142,13 @@ def on(
         if matcher:
 
             @wraps(func)
-            async def wrapper(event: Event) -> Callable[[Event], Any] | None:
+            async def wrapper(event: Event) -> Any:
                 if isinstance(event, event_type) and matcher(event):
                     return await func(event)
         else:
 
             @wraps(func)
-            async def wrapper(event: Event) -> Callable[[Event], Any] | None:
+            async def wrapper(event: Event) -> Any:
                 if isinstance(event, event_type):
                     return await func(event)
 
