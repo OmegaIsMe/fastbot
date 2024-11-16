@@ -87,7 +87,7 @@ class PrivateMessageEvent(MessageEvent):
         | Iterable[str | Message | MessageSegment],
     ) -> Any:
         return await FastBot.do(
-            endpoint="send_private_msg ",
+            endpoint="send_private_msg",
             message=[asdict(msg) for msg in Message(message)],
             self_id=self.self_id,
             user_id=self.user_id,
