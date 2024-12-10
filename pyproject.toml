@@ -1,0 +1,15 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "FastBot"
+version  = "2024.12.10"
+dependencies = ["fastapi", "uvicorn", "websockets"]
+requires-python = ">=3"
+description = "A Lightweight BOT Framework"
+readme = "README.md"
+license = {text = "MIT License"}
+
+[tool.hatch.build.targets.wheel]
+packages = ["fastbot"]
